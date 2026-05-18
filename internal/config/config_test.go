@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -83,6 +84,17 @@ func TestDefaultConfigPath_xdg(t *testing.T) {
 	path := DefaultConfigPath()
 	if path != "/tmp/xdg/anprr/config.toml" {
 		t.Errorf("got %q", path)
+	}
+}
+
+func TestDefaultConfigPath_noXdg(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	path := DefaultConfigPath()
+	if path == "" {
+		t.Fatal("expected non-empty path")
+	}
+	if !strings.HasSuffix(path, "/.config/anprr/config.toml") {
+		t.Errorf("got %q, expected suffix /.config/anprr/config.toml", path)
 	}
 }
 

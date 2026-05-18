@@ -1,6 +1,7 @@
 package github
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -61,6 +62,59 @@ func TestBuildListPRsQuery_withCursor(t *testing.T) {
 	query, _ := buildListPRsQuery([]string{"a/b"}, "cursor123")
 	if !strings.Contains(query, `after: "cursor123"`) {
 		t.Errorf("query missing cursor:\n%s", query)
+	}
+}
+
+func TestParseListPRsResponse(t *testing.T) {
+	aliasMap := map[string]string{"r0": "owner/repo"}
+	prJSON := `{
+		"number": 7, "title": "fix: something", "url": "https://github.com/owner/repo/pull/7",
+		"isDraft": false, "body": "## Summary\nFixes a bug.",
+		"createdAt": "2026-05-01T00:00:00Z", "updatedAt": "2026-05-18T00:00:00Z",
+		"additions": 10, "deletions": 2,
+		"headRefName": "fix/bug", "baseRefName": "main", "mergeable": "MERGEABLE",
+		"author": {"login": "alice", "__typename": "User"},
+		"reviewRequests": {"nodes": []},
+		"reviews": {"nodes": []},
+		"commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": "SUCCESS"}}}]}
+	}`
+	repoJSON := `{"pullRequests":{"nodes":[` + prJSON + `],"pageInfo":{"hasNextPage":false,"endCursor":""}}}`
+	data := map[string]json.RawMessage{"r0": json.RawMessage(repoJSON)}
+
+	prs, err := parseListPRsResponse(data, aliasMap)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(prs) != 1 {
+		t.Fatalf("expected 1 PR, got %d", len(prs))
+	}
+	pr := prs[0]
+	if pr.Number != 7 || pr.Title != "fix: something" {
+		t.Errorf("wrong PR fields: %+v", pr)
+	}
+	if pr.Repo != "owner/repo" {
+		t.Errorf("repo: got %q", pr.Repo)
+	}
+	if pr.Body != "## Summary\nFixes a bug." {
+		t.Errorf("body: got %q", pr.Body)
+	}
+	if pr.CheckState != "SUCCESS" {
+		t.Errorf("checkState: got %q", pr.CheckState)
+	}
+	if pr.Author.Login != "alice" || pr.Author.IsBot {
+		t.Errorf("author: %+v", pr.Author)
+	}
+}
+
+func TestParseListPRsResponse_missingAlias(t *testing.T) {
+	aliasMap := map[string]string{"r0": "owner/repo"}
+	data := map[string]json.RawMessage{} // no "r0" key
+	prs, err := parseListPRsResponse(data, aliasMap)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(prs) != 0 {
+		t.Errorf("expected 0 PRs, got %d", len(prs))
 	}
 }
 

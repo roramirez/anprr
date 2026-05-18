@@ -170,6 +170,24 @@ diff --git a/bar.py b/bar.py
 	}
 }
 
+func TestFormatPosition(t *testing.T) {
+	cases := []struct {
+		line DiffLine
+		want string
+	}{
+		{DiffLine{Type: DiffAdded, Path: "auth/token.go", NewLine: 42}, "auth/token.go:42 (new)"},
+		{DiffLine{Type: DiffRemoved, Path: "auth/token.go", OldLine: 10}, "auth/token.go:10 (old)"},
+		{DiffLine{Type: DiffContext, Path: "main.go", NewLine: 5, OldLine: 5}, "main.go:5"},
+		{DiffLine{Type: DiffFileHeader, Path: ""}, ""},
+	}
+	for _, c := range cases {
+		got := FormatPosition(c.line)
+		if got != c.want {
+			t.Errorf("FormatPosition(%+v) = %q, want %q", c.line, got, c.want)
+		}
+	}
+}
+
 func TestCommentSideAndLine(t *testing.T) {
 	added := DiffLine{Type: DiffAdded, NewLine: 42}
 	removed := DiffLine{Type: DiffRemoved, OldLine: 10}

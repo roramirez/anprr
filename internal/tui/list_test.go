@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -228,6 +229,110 @@ func TestListModel_botPRsAppearInAllOpen(t *testing.T) {
 	prs := m.visiblePRs()
 	if len(prs) != 1 {
 		t.Errorf("bot PRs should appear in All Open, got %d", len(prs))
+	}
+}
+
+// Pure function tests
+
+func TestRenderCheckIcon(t *testing.T) {
+	cases := []struct {
+		state string
+		want  string
+	}{
+		{"SUCCESS", "✓"},
+		{"FAILURE", "✗"},
+		{"ERROR", "✗"},
+		{"PENDING", "○"},
+		{"IN_PROGRESS", "○"},
+		{"QUEUED", "○"},
+		{"", "—"},
+		{"EXPECTED", "—"},
+	}
+	for _, c := range cases {
+		got := renderCheckIcon(c.state)
+		if !strings.Contains(got, c.want) {
+			t.Errorf("renderCheckIcon(%q) = %q, want to contain %q", c.state, got, c.want)
+		}
+	}
+}
+
+func TestStatusDot(t *testing.T) {
+	cases := []struct {
+		pr      github.PR
+		wantDot string
+	}{
+		{github.PR{IsDraft: true}, "○"},
+		{github.PR{ReviewStatus: github.StatusApproved}, "●"},
+		{github.PR{ReviewStatus: github.StatusChangesRequested}, "●"},
+		{github.PR{ReviewStatus: github.StatusConflict}, "●"},
+		{github.PR{ReviewStatus: github.StatusPending}, "●"},
+	}
+	for _, c := range cases {
+		dot, _ := statusDot(c.pr)
+		if dot != c.wantDot {
+			t.Errorf("statusDot(%+v) dot = %q, want %q", c.pr, dot, c.wantDot)
+		}
+	}
+}
+
+func TestTimeAgo(t *testing.T) {
+	cases := []struct {
+		d    time.Duration
+		want string
+	}{
+		{30 * time.Second, "just now"},
+		{5 * time.Minute, "5m"},
+		{3 * time.Hour, "3h"},
+		{2 * 24 * time.Hour, "2d"},
+		{10 * 24 * time.Hour, "1w"},
+	}
+	for _, c := range cases {
+		got := timeAgo(time.Now().Add(-c.d))
+		if got != c.want {
+			t.Errorf("timeAgo(-%v) = %q, want %q", c.d, got, c.want)
+		}
+	}
+}
+
+func TestUpdateListModelMore_appends(t *testing.T) {
+	m := newListModel()
+	m.allPRs = []github.PR{makePR(1, "alice", "org/repo", false, github.StatusPending)}
+
+	msg := MorePRsLoadedMsg{
+		PRs:       []github.PR{makePR(2, "bob", "org/repo", false, github.StatusPending)},
+		HasNext:   false,
+		EndCursor: "",
+		Repo:      "org/repo",
+	}
+	m, _ = updateListModelMore(m, msg)
+	if len(m.allPRs) != 2 {
+		t.Errorf("expected 2 PRs, got %d", len(m.allPRs))
+	}
+	if m.hasNextPage["org/repo"] {
+		t.Error("expected hasNextPage=false")
+	}
+}
+
+func TestUpdateListModelMore_error(t *testing.T) {
+	m := newListModel()
+	msg := MorePRsLoadedMsg{Err: fmt.Errorf("rate limited")}
+	m, cmds := updateListModelMore(m, msg)
+	if len(m.allPRs) != 0 {
+		t.Error("expected no PRs on error")
+	}
+	if len(cmds) == 0 {
+		t.Error("expected error status cmd")
+	}
+}
+
+func TestUpdateListModel_error(t *testing.T) {
+	m := newListModel()
+	m, cmds := updateListModel(m, PRsLoadedMsg{Err: fmt.Errorf("api error")})
+	if m.state != listStateReady {
+		t.Error("expected ready state even on error")
+	}
+	if len(cmds) == 0 {
+		t.Error("expected error status cmd")
 	}
 }
 
