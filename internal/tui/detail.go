@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/roramirez/anprr/internal/diff"
 	"github.com/roramirez/anprr/internal/github"
@@ -44,6 +45,14 @@ const (
 	viewSplit
 )
 
+type detailTab int
+
+const (
+	detailTabDiff        detailTab = iota // [1] diff view
+	detailTabDescription                  // [2] PR description
+	detailTabComments                     // [3] comments
+)
+
 const textareaHeight = 5 // visible lines in the comment box
 
 type DetailModel struct {
@@ -56,6 +65,9 @@ type DetailModel struct {
 	width   int
 	height  int
 	err     error
+
+	// sub-tab navigation
+	activeTab detailTab
 
 	// diff data
 	diffLines []diff.DiffLine
@@ -122,6 +134,18 @@ func (m DetailModel) setPR(pr github.PR, focusComment bool) DetailModel {
 
 func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Cache) (DetailModel, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case CommentsLoadedMsg:
+		if msg.Err != nil {
+			return m, statusCmd("Error loading comments: "+msg.Err.Error(), true)
+		}
+		m.pr.Comments = msg.Comments
+		m.pr.LineComments = msg.LineComments
+		m.pr.CommentsLoaded = true
+		if m.activeTab == detailTabComments {
+			m.renderComments()
+		}
+		return m, nil
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -212,6 +236,21 @@ func (m DetailModel) handleMergeConfirm(msg tea.KeyMsg, client *github.Client) (
 
 func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *github.Cache) (DetailModel, tea.Cmd) {
 	switch msg.String() {
+	case "1":
+		m.activeTab = detailTabDiff
+		m.rerender()
+		return m, nil
+	case "2":
+		m.activeTab = detailTabDescription
+		m.renderDescription()
+		return m, nil
+	case "3":
+		m.activeTab = detailTabComments
+		if !m.pr.CommentsLoaded {
+			return m, fetchCommentsCmd(client, m.pr)
+		}
+		m.renderComments()
+		return m, nil
 	case "s":
 		// toggle between unified and split view
 		if m.diffView == viewUnified {
@@ -401,6 +440,57 @@ func (m *DetailModel) rerender() {
 	m.vp.SetContent(rendered)
 }
 
+func (m *DetailModel) renderDescription() {
+	body := m.pr.Body
+	if body == "" {
+		body = "_No description provided._"
+	}
+	rendered, err := glamour.Render(body, "dark")
+	if err != nil {
+		rendered = body
+	}
+	m.vp.SetContent(rendered)
+	m.vp.GotoTop()
+}
+
+func (m *DetailModel) renderComments() {
+	if !m.pr.CommentsLoaded {
+		m.vp.SetContent(StyleStatusBar.Render("  Loading comments…"))
+		return
+	}
+	total := len(m.pr.Comments) + len(m.pr.LineComments)
+	if total == 0 {
+		m.vp.SetContent(StyleStatusBar.Render("  No comments."))
+		return
+	}
+	var sb strings.Builder
+	sep := strings.Repeat("─", m.vp.Width)
+
+	for _, c := range m.pr.Comments {
+		sb.WriteString(StyleHelpKey.Render(c.Author.Login))
+		sb.WriteString(StylePRAge.Render("  " + timeAgo(c.CreatedAt)))
+		sb.WriteByte('\n')
+		for _, line := range strings.Split(strings.TrimSpace(c.Body), "\n") {
+			sb.WriteString("  " + StylePRTitle.Render(line) + "\n")
+		}
+		sb.WriteString(StylePRAge.Render(sep) + "\n")
+	}
+	for _, rc := range m.pr.LineComments {
+		sb.WriteString(StyleHelpKey.Render(rc.Author.Login))
+		sb.WriteString(StylePRAge.Render("  " + rc.Path))
+		if rc.Line > 0 {
+			sb.WriteString(StylePRAge.Render(fmt.Sprintf(":%d", rc.Line)))
+		}
+		sb.WriteByte('\n')
+		for _, line := range strings.Split(strings.TrimSpace(rc.Body), "\n") {
+			sb.WriteString("  " + StylePRTitle.Render(line) + "\n")
+		}
+		sb.WriteString(StylePRAge.Render(sep) + "\n")
+	}
+	m.vp.SetContent(sb.String())
+	m.vp.GotoTop()
+}
+
 func (m DetailModel) firstCommentableLine() int {
 	for i, dl := range m.diffLines {
 		if dl.Commentable {
@@ -439,8 +529,9 @@ func (m *DetailModel) scrollToCursor() {
 
 func (m DetailModel) view(width, height int, statusBar string) string {
 	header := m.renderHeader(width)
+	tabs := m.renderTabs()
 	footer := m.renderFooter(width, statusBar)
-	headerH := lipgloss.Height(header)
+	headerH := lipgloss.Height(header) + lipgloss.Height(tabs)
 	footerH := lipgloss.Height(footer)
 	// reserve extra space for the textarea box or confirm prompts
 	switch m.state {
@@ -459,12 +550,33 @@ func (m DetailModel) view(width, height int, statusBar string) string {
 	var body string
 	if m.state == detailStateLoading {
 		body = lipgloss.Place(width, bodyH, lipgloss.Center, lipgloss.Center,
-			m.spinner.View()+" Loading diff…")
+			m.spinner.View()+" Loading…")
 	} else {
 		body = m.vp.View()
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, header, body, footer)
+	return lipgloss.JoinVertical(lipgloss.Left, header, tabs, body, footer)
+}
+
+func (m DetailModel) renderTabs() string {
+	totalComments := len(m.pr.Comments) + len(m.pr.LineComments)
+	tabs := []struct {
+		label string
+		idx   detailTab
+	}{
+		{"  [1] Diff  ", detailTabDiff},
+		{"  [2] Description  ", detailTabDescription},
+		{fmt.Sprintf("  [3] Comments (%d)  ", totalComments), detailTabComments},
+	}
+	var out strings.Builder
+	for _, tab := range tabs {
+		if m.activeTab == tab.idx {
+			out.WriteString(StyleTabActive.Render(tab.label))
+		} else {
+			out.WriteString(StyleTabInactive.Render(tab.label))
+		}
+	}
+	return out.String()
 }
 
 func (m DetailModel) renderHeader(width int) string {
@@ -558,7 +670,7 @@ func (m DetailModel) renderFooter(width int, statusBar string) string {
 			viewLabel = "[split]"
 		}
 		keys = StyleFooter.Render(fmt.Sprintf(
-			"s=%s  n=inline  a=approve  m=merge  r=changes  c=comment  f=refresh  w=web  b=back  ?=help  q=quit",
+			"1/2/3=tab  s=%s  n=inline  a=approve  m=merge  r=changes  c=comment  w=web  b=back  ?=help  q=quit",
 			viewLabel,
 		))
 	}
@@ -592,6 +704,14 @@ func mergePRCmd(client *github.Client, pr github.PR, method github.MergeMethod) 
 		owner, repo := splitRepo(pr.Repo)
 		err := client.MergePR(owner, repo, pr.Number, method)
 		return MergeDoneMsg{Err: err}
+	}
+}
+
+func fetchCommentsCmd(client *github.Client, pr github.PR) tea.Cmd {
+	return func() tea.Msg {
+		owner, repo := splitRepo(pr.Repo)
+		comments, reviewComments, err := client.FetchComments(owner, repo, pr.Number)
+		return CommentsLoadedMsg{Comments: comments, LineComments: reviewComments, Err: err}
 	}
 }
 

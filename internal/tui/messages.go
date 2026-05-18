@@ -62,6 +62,13 @@ type StatusMsg struct {
 // ClearStatusMsg clears the status bar after a timeout.
 type ClearStatusMsg struct{}
 
+// CommentsLoadedMsg is sent when PR comments and description are fetched.
+type CommentsLoadedMsg struct {
+	Comments     []github.Comment
+	LineComments []github.LineComment
+	Err          error
+}
+
 // MergeDoneMsg is sent when a PR merge completes.
 type MergeDoneMsg struct {
 	Err error

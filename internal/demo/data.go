@@ -114,6 +114,26 @@ diff --git a/internal/auth/token_test.go b/internal/auth/token_test.go
 // MockUser is the fake authenticated user login.
 const MockUser = "roramirez"
 
+const mockPRBody = "## Summary\n\n" +
+	"Add token expiry validation and per-scope authorization to the auth package.\n\n" +
+	"## Changes\n\n" +
+	"- **New field** `Scopes []string` on `Token` struct\n" +
+	"- **New error** `ErrTokenExpired` returned when token is past `ExpiresAt`\n" +
+	"- `Validate()` now accepts optional required scopes and checks each one\n" +
+	"- Helper `hasScope()` for internal scope lookup\n\n" +
+	"## How to test\n\n" +
+	"```bash\ngo test ./internal/auth/... -race\n```\n\n" +
+	"All existing tests pass. New tests cover expiry and scope validation."
+
+const mockCommentsJSON = `[
+  {"body": "This looks good overall. Should ErrTokenExpired be exported or internal?", "created_at": "2026-05-18T10:00:00Z", "user": {"login": "alice"}},
+  {"body": "LGTM! Left one inline comment on the scope check.", "created_at": "2026-05-18T11:30:00Z", "user": {"login": "bob"}}
+]`
+
+const mockReviewCommentsJSON = `[
+  {"body": "Consider using errors.Is here instead of direct comparison for better error wrapping support.", "path": "internal/auth/token.go", "line": 42, "position": 5, "user": {"login": "bob"}}
+]`
+
 // now is a stable reference point for demo timestamps.
 var now = time.Now()
 
@@ -167,6 +187,7 @@ func prNode(number int, title, head, base string, additions, deletions int,
 		"deletions":   deletions,
 		"headRefName": head,
 		"baseRefName": base,
+		"body":        mockPRBody,
 		"mergeable":   mergeable,
 		"author":      map[string]interface{}{"login": authorLogin, "__typename": typename},
 		"reviews":     map[string]interface{}{"nodes": reviews},
@@ -257,6 +278,20 @@ func (Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 			"errors": nil,
 		}
 		body = wrapper
+
+	case strings.Contains(path, "/issues/") && strings.HasSuffix(path, "/comments") && req.Method == http.MethodGet:
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(mockCommentsJSON)),
+			Header:     make(http.Header),
+		}, nil
+
+	case strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/comments") && req.Method == http.MethodGet:
+		return &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(mockReviewCommentsJSON)),
+			Header:     make(http.Header),
+		}, nil
 
 	case strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/merge") && req.Method == http.MethodPut:
 		body = map[string]string{"sha": "abc123", "merged": "true", "message": "PR merged"}

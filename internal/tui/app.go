@@ -104,7 +104,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail = newDetailModel()
 		m.detail = m.detail.setSize(m.width, m.height)
 		m.detail = m.detail.setPR(msg.PR, msg.FocusComment)
-		return m, fetchDiffCmd(m.client, m.cache, msg.PR)
+		return m, tea.Batch(
+			fetchDiffCmd(m.client, m.cache, msg.PR),
+			fetchCommentsCmd(m.client, msg.PR),
+		)
 
 	case NavigateToListMsg:
 		m.active = screenList
@@ -113,6 +116,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case DiffLoadedMsg:
 		var cmd tea.Cmd
 		m.detail, cmd = updateDetailDiff(m.detail, msg, m.syntaxHL)
+		return m, cmd
+
+	case CommentsLoadedMsg:
+		var cmd tea.Cmd
+		m.detail, cmd = m.detail.update(msg, m.client, m.cache)
 		return m, cmd
 
 	case MergeDoneMsg:
