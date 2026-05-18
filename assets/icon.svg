@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <pattern id="scanlines" x="0" y="0" width="2" height="4" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="2" height="2" fill="#cdd6f4"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" ry="80" fill="#1e1e2e"/>
+  <rect width="512" height="512" rx="80" ry="80" fill="url(#scanlines)" opacity="0.04"/>
+  <rect x="2" y="2" width="508" height="508" rx="79" ry="79" fill="none" stroke="#313244" stroke-width="4"/>
+
+  <!-- PR letters -->
+  <text
+    x="256"
+    y="200"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="monospace, 'Courier New', Courier"
+    font-size="220"
+    font-weight="bold"
+    letter-spacing="-10"
+    fill="#cdd6f4"
+  >PR</text>
+
+  <!-- Diff lines: removed line (red) -->
+  <rect x="72" y="300" width="28" height="28" rx="4" fill="#f38ba8"/>
+  <text
+    x="86"
+    y="319"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="monospace, 'Courier New', Courier"
+    font-size="22"
+    font-weight="bold"
+    fill="#1e1e2e"
+  >-</text>
+  <rect x="112" y="308" width="130" height="12" rx="4" fill="#f38ba8" opacity="0.45"/>
+
+  <!-- Diff lines: added line (green) -->
+  <rect x="72" y="342" width="28" height="28" rx="4" fill="#a6e3a1"/>
+  <text
+    x="86"
+    y="361"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="monospace, 'Courier New', Courier"
+    font-size="22"
+    font-weight="bold"
+    fill="#1e1e2e"
+  >+</text>
+  <rect x="112" y="350" width="175" height="12" rx="4" fill="#a6e3a1" opacity="0.45"/>
+
+  <!-- Approve checkmark circle -->
+  <circle cx="392" cy="336" r="52" fill="none" stroke="#a6e3a1" stroke-width="14"/>
+  <polyline
+    points="365,336 384,356 422,315"
+    fill="none"
+    stroke="#a6e3a1"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- "anprr" small name at bottom -->
+  <text
+    x="200"
+    y="450"
+    text-anchor="middle"
+    dominant-baseline="middle"
+    font-family="monospace, 'Courier New', Courier"
+    font-size="46"
+    font-weight="bold"
+    fill="#585b70"
+  >anprr</text>
+
+  <!-- Heart (small, bottom right of name) -->
+  <path
+    transform="translate(138.5, 245) scale(0.55)"
+    d="M370,340 C370,320 344,308 330,324 C316,308 290,320 290,340 C290,358 330,386 330,386 C330,386 370,358 370,340 Z"
+    fill="#f38ba8"
+  />
+</svg>

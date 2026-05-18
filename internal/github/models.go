@@ -1,0 +1,61 @@
+package github
+
+import "time"
+
+type PRStatus string
+
+const (
+	StatusPending          PRStatus = "pending"
+	StatusApproved         PRStatus = "approved"
+	StatusChangesRequested PRStatus = "changes_requested"
+	StatusConflict         PRStatus = "conflict"
+)
+
+type ReviewEvent string
+
+const (
+	ReviewApprove        ReviewEvent = "APPROVE"
+	ReviewRequestChanges ReviewEvent = "REQUEST_CHANGES"
+	ReviewComment        ReviewEvent = "COMMENT"
+)
+
+type User struct {
+	Login string
+	IsBot bool // true for Bot, Mannequin, or logins containing "[bot]"
+}
+
+type Review struct {
+	Author      User
+	State       string // APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED
+	SubmittedAt time.Time
+}
+
+type PR struct {
+	Number             int
+	Title              string
+	URL                string
+	IsDraft            bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Additions          int
+	Deletions          int
+	HeadRef            string
+	BaseRef            string
+	Mergeable          string // MERGEABLE, CONFLICTING, UNKNOWN
+	Author             User
+	Repo               string // "owner/repo"
+	Reviews            []Review
+	RequestedReviewers []User
+	ReviewStatus       PRStatus
+	// Pagination cursor from the repo this PR belongs to (used for load-more)
+	HasNextPage bool
+	EndCursor   string
+}
+
+// InlineComment is a pending review comment attached to a specific diff line.
+type InlineComment struct {
+	Path string // file path, e.g. "auth/token.go"
+	Line int    // line number in the file
+	Side string // "RIGHT" (new file) or "LEFT" (old file)
+	Body string
+}

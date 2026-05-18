@@ -1,0 +1,21 @@
+# Binary
+anprr
+
+# Go
+*.test
+*.out
+/vendor/
+
+# Project internal
+PLAN.md
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
