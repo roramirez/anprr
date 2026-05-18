@@ -75,7 +75,7 @@ func buildListPRsQuery(repos []string, afterCursor string) (string, map[string]s
 		fmt.Fprintf(&sb, `  %s: repository(owner: %q, name: %q) {
     pullRequests(first: 50, states: [OPEN], orderBy: {field: UPDATED_AT, direction: DESC}%s) {
       nodes {
-        number title url isDraft createdAt updatedAt additions deletions
+        number title url isDraft body createdAt updatedAt additions deletions
         headRefName baseRefName mergeable
         author { login __typename }
         reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } }
@@ -96,6 +96,7 @@ type gqlPR struct {
 	Title     string `json:"title"`
 	URL       string `json:"url"`
 	IsDraft   bool   `json:"isDraft"`
+	Body      string `json:"body"`
 	CreatedAt string `json:"createdAt"`
 	UpdatedAt string `json:"updatedAt"`
 	Additions int    `json:"additions"`
@@ -200,6 +201,7 @@ func convertPR(node gqlPR, repo string) PR {
 	pr := PR{
 		Number:             node.Number,
 		Title:              node.Title,
+		Body:               node.Body,
 		URL:                node.URL,
 		IsDraft:            node.IsDraft,
 		CreatedAt:          createdAt,

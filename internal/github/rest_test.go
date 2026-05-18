@@ -201,6 +201,78 @@ func TestMergePR_rebase(t *testing.T) {
 	}
 }
 
+// FetchComments uses two consecutive requests (issues comments then pull comments).
+// We use a counter-based transport to serve different responses per call.
+
+type multiTransport struct {
+	responses []struct {
+		status int
+		body   string
+	}
+	call int
+}
+
+func (m *multiTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := m.responses[m.call%len(m.responses)]
+	m.call++
+	return &http.Response{
+		StatusCode: r.status,
+		Body:       io.NopCloser(strings.NewReader(r.body)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func TestFetchComments_parsesResults(t *testing.T) {
+	commentsJSON := `[{"body":"looks good","created_at":"2026-05-18T10:00:00Z","user":{"login":"alice"}}]`
+	reviewJSON := `[{"body":"nil check needed","path":"auth/token.go","line":42,"position":5,"user":{"login":"bob"}}]`
+	mt := &multiTransport{responses: []struct {
+		status int
+		body   string
+	}{{200, commentsJSON}, {200, reviewJSON}}}
+	c := NewClient("tok", mt)
+
+	comments, lineComments, err := c.FetchComments("owner", "repo", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(comments) != 1 || comments[0].Author.Login != "alice" || comments[0].Body != "looks good" {
+		t.Errorf("comments: %+v", comments)
+	}
+	if len(lineComments) != 1 || lineComments[0].Author.Login != "bob" ||
+		lineComments[0].Path != "auth/token.go" || lineComments[0].Line != 42 {
+		t.Errorf("lineComments: %+v", lineComments)
+	}
+}
+
+func TestFetchComments_emptyResponse(t *testing.T) {
+	mt := &multiTransport{responses: []struct {
+		status int
+		body   string
+	}{{200, "[]"}, {200, "[]"}}}
+	c := NewClient("tok", mt)
+
+	comments, lineComments, err := c.FetchComments("owner", "repo", 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(comments) != 0 || len(lineComments) != 0 {
+		t.Errorf("expected empty results")
+	}
+}
+
+func TestFetchComments_errorOnFirstRequest(t *testing.T) {
+	mt := &multiTransport{responses: []struct {
+		status int
+		body   string
+	}{{404, `{"message":"not found"}`}, {200, "[]"}}}
+	c := NewClient("tok", mt)
+
+	_, _, err := c.FetchComments("owner", "repo", 1)
+	if err == nil {
+		t.Error("expected error on 404")
+	}
+}
+
 func TestSearchReviewRequested_parsesResults(t *testing.T) {
 	body := `{"total_count":2,"items":[
 		{"number":42,"repository_url":"https://api.github.com/repos/myorg/backend"},

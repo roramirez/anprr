@@ -138,6 +138,60 @@ func (c *Client) SearchReviewRequested(repos []string, cache *Cache) (map[string
 	return result, nil
 }
 
+// FetchComments fetches general comments and inline review comments for a PR.
+func (c *Client) FetchComments(owner, repo string, number int) ([]Comment, []LineComment, error) {
+	// general issue comments
+	var rawComments []struct {
+		Body      string `json:"body"`
+		CreatedAt string `json:"created_at"`
+		User      struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments?per_page=100", owner, repo, number)
+	if err := c.REST("GET", path, nil, &rawComments); err != nil {
+		return nil, nil, err
+	}
+	comments := make([]Comment, 0, len(rawComments))
+	for _, rc := range rawComments {
+		t, _ := time.Parse(time.RFC3339, rc.CreatedAt)
+		comments = append(comments, Comment{
+			Author:    User{Login: rc.User.Login},
+			Body:      rc.Body,
+			CreatedAt: t,
+		})
+	}
+
+	// inline review comments
+	var rawLineComments []struct {
+		Body     string `json:"body"`
+		Path     string `json:"path"`
+		Line     int    `json:"line"`
+		Position int    `json:"position"`
+		User     struct {
+			Login string `json:"login"`
+		} `json:"user"`
+	}
+	path2 := fmt.Sprintf("/repos/%s/%s/pulls/%d/comments?per_page=100", owner, repo, number)
+	if err := c.REST("GET", path2, nil, &rawLineComments); err != nil {
+		return comments, nil, err
+	}
+	reviewComments := make([]LineComment, 0, len(rawLineComments))
+	for _, rc := range rawLineComments {
+		line := rc.Line
+		if line == 0 {
+			line = rc.Position
+		}
+		reviewComments = append(reviewComments, LineComment{
+			Author: User{Login: rc.User.Login},
+			Body:   rc.Body,
+			Path:   rc.Path,
+			Line:   line,
+		})
+	}
+	return comments, reviewComments, nil
+}
+
 // PostComment posts a comment on a PR.
 func (c *Client) PostComment(owner, repo string, number int, body string) error {
 	path := fmt.Sprintf("/repos/%s/%s/issues/%d/comments", owner, repo, number)

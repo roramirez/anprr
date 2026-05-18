@@ -30,9 +30,25 @@ type Review struct {
 	SubmittedAt time.Time
 }
 
+// Comment is a general PR comment (not attached to a diff line).
+type Comment struct {
+	Author    User
+	Body      string
+	CreatedAt time.Time
+}
+
+// LineComment is an inline comment attached to a specific diff line.
+type LineComment struct {
+	Author User
+	Body   string
+	Path   string
+	Line   int
+}
+
 type PR struct {
 	Number             int
 	Title              string
+	Body               string // PR description (markdown)
 	URL                string
 	IsDraft            bool
 	CreatedAt          time.Time
@@ -49,8 +65,10 @@ type PR struct {
 	ReviewStatus       PRStatus
 	// CheckState is the aggregate CI status from statusCheckRollup.
 	// Values: "SUCCESS", "FAILURE", "PENDING", "ERROR", "EXPECTED", "" (no checks configured)
-	CheckState string
-
+	CheckState     string
+	Comments       []Comment     // general PR comments (loaded on-demand)
+	LineComments   []LineComment // inline review comments (loaded on-demand)
+	CommentsLoaded bool          // true once comments have been fetched
 	// Pagination cursor from the repo this PR belongs to (used for load-more)
 	HasNextPage bool
 	EndCursor   string
