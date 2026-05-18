@@ -55,6 +55,17 @@ const MockDiff = `diff --git a/internal/auth/token.go b/internal/auth/token.go
 +	}
 +	return false
  }
++
++// buildQuery returns the SQL query for token audit logs.
++func buildQuery(userID int) string {
++	return fmt.Sprintf(` + "`" + `
++		SELECT token_hash, created_at, last_used_at
++		FROM auth_tokens
++		WHERE user_id = %d
++		  AND revoked_at IS NULL
++		ORDER BY created_at DESC
++	` + "`" + `, userID)
++}
 diff --git a/internal/auth/token_test.go b/internal/auth/token_test.go
 --- a/internal/auth/token_test.go
 +++ b/internal/auth/token_test.go

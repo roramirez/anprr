@@ -119,6 +119,26 @@ func TestSplit_fullDiff(t *testing.T) {
 	}
 }
 
+func TestRenderSplit_chromaMultiLineString(t *testing.T) {
+	// File-level tokenization must also work in split view.
+	// A raw string literal spanning multiple added lines should receive string color.
+	raw := "diff --git a/query.go b/query.go\n" +
+		"--- a/query.go\n" +
+		"+++ b/query.go\n" +
+		"@@ -1,2 +1,5 @@\n" +
+		" package main\n" +
+		"+var q = `\n" +
+		"+  SELECT id\n" +
+		"+  FROM users`\n"
+	lines := Parse(raw)
+	hl := NewChromaHighlighter()
+	out := RenderSplit(lines, 160, hl, -1, nil)
+	// monokai string color: #e6db74 = 230;219;116
+	if !strings.Contains(out, "230;219;116") {
+		t.Error("expected string literal color in split view — file-level tokenization not working for RenderSplit")
+	}
+}
+
 func TestRenderSplit_containsBothSides(t *testing.T) {
 	lines := Parse("diff --git a/x.go b/x.go\n@@ -1,2 +1,2 @@\n-old line\n+new line\n ctx\n")
 	out := RenderSplit(lines, 120, NoopHighlighter{}, -1, nil)

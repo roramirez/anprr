@@ -22,6 +22,9 @@ func RenderSplit(lines []DiffLine, width int, hl Highlighter, cursor int, commen
 		commented = map[int]bool{}
 	}
 
+	// pre-tokenize all files at once (same as unified Render)
+	fileTokens := preTokenize(lines, hl)
+
 	rows := Split(lines)
 
 	// column widths: each side gets equal space, separator takes 3 chars (" │ ")
@@ -33,7 +36,6 @@ func RenderSplit(lines []DiffLine, width int, hl Highlighter, cursor int, commen
 	var sb strings.Builder
 	for _, row := range rows {
 		if row.IsHeader {
-			// header spans full width
 			mark := "  "
 			line := row.Header
 			var rendered string
@@ -48,11 +50,19 @@ func RenderSplit(lines []DiffLine, width int, hl Highlighter, cursor int, commen
 		}
 
 		// left side
-		leftMark, leftCell := renderSplitCell(row.Left, row.LeftIdx, colW, hl, cursor, commented,
+		var leftTokens []Token
+		if row.LeftIdx >= 0 {
+			leftTokens = fileTokens[row.LeftIdx]
+		}
+		leftMark, leftCell := renderSplitCell(row.Left, row.LeftIdx, colW, leftTokens, cursor, commented,
 			styleRemoved, styleRemovedPrefix)
 
 		// right side
-		rightMark, rightCell := renderSplitCell(row.Right, row.RightIdx, colW, hl, cursor, commented,
+		var rightTokens []Token
+		if row.RightIdx >= 0 {
+			rightTokens = fileTokens[row.RightIdx]
+		}
+		rightMark, rightCell := renderSplitCell(row.Right, row.RightIdx, colW, rightTokens, cursor, commented,
 			styleAdded, styleAddedPrefix)
 
 		sep := styleSeparator.Render(" │ ")
@@ -65,40 +75,34 @@ func renderSplitCell(
 	line *DiffLine,
 	idx int,
 	colW int,
-	hl Highlighter,
+	tokens []Token,
 	cursor int,
 	commented map[int]bool,
 	base, prefixSt lipgloss.Style,
 ) (mark, cell string) {
 	if line == nil {
-		// empty slot
 		return "  ", styleEmpty.Render(strings.Repeat("░", colW))
 	}
 
-	// gutter mark
 	mark = "  "
 	if commented[idx] {
 		mark = styleCommentMark.Render("● ")
 	}
 
-	// cursor highlight
 	if idx == cursor && line.Commentable {
-		text := padRight(stripANSI(renderLine(*line, colW, hl)), colW)
-		cell = styleCursor.Render(text)
+		rendered := renderLineWithTokens(*line, colW, tokens)
+		cell = styleCursor.Render(padRight(stripANSI(rendered), colW))
 		mark = styleCursor.Render("> ")
 		return mark, cell
 	}
 
-	// normal render
 	switch line.Type {
 	case DiffAdded:
-		cell = renderColoredLine(*line, colW, hl, styleAdded, styleAddedPrefix)
+		cell = renderColoredLine(*line, colW, tokens, styleAdded, styleAddedPrefix)
 	case DiffRemoved:
-		cell = renderColoredLine(*line, colW, hl, styleRemoved, styleRemovedPrefix)
+		cell = renderColoredLine(*line, colW, tokens, styleRemoved, styleRemovedPrefix)
 	default:
-		// context line — use the appropriate base style based on which side we're on
-		tokens := hl.Tokenize(line.Lang, line.Text)
-		cell = styleContext.Render(padRight(joinTokensNoColor(tokens), colW))
+		cell = renderContextLine(*line, colW, tokens)
 	}
 	return mark, cell
 }
