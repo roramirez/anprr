@@ -10,9 +10,9 @@ import (
 )
 
 type Config struct {
-	Token  string   `toml:"token"`
-	Repos  []string `toml:"repos"`
-	Syntax bool     `toml:"syntax"`
+	Token    string   `toml:"token"`
+	Repos    []string `toml:"repos"`
+	NoSyntax bool     `toml:"no-syntax"` // set to true to disable syntax highlighting (on by default)
 }
 
 func DefaultConfigPath() string {
