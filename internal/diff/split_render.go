@@ -54,16 +54,14 @@ func RenderSplit(lines []DiffLine, width int, hl Highlighter, cursor int, commen
 		if row.LeftIdx >= 0 {
 			leftTokens = fileTokens[row.LeftIdx]
 		}
-		leftMark, leftCell := renderSplitCell(row.Left, row.LeftIdx, colW, leftTokens, cursor, commented,
-			styleRemoved, styleRemovedPrefix)
+		leftMark, leftCell := renderSplitCell(row.Left, row.LeftIdx, colW, leftTokens, cursor, commented)
 
 		// right side
 		var rightTokens []Token
 		if row.RightIdx >= 0 {
 			rightTokens = fileTokens[row.RightIdx]
 		}
-		rightMark, rightCell := renderSplitCell(row.Right, row.RightIdx, colW, rightTokens, cursor, commented,
-			styleAdded, styleAddedPrefix)
+		rightMark, rightCell := renderSplitCell(row.Right, row.RightIdx, colW, rightTokens, cursor, commented)
 
 		sep := styleSeparator.Render(" │ ")
 		sb.WriteString(leftMark + leftCell + sep + rightMark + rightCell + "\n")
@@ -78,7 +76,6 @@ func renderSplitCell(
 	tokens []Token,
 	cursor int,
 	commented map[int]bool,
-	base, prefixSt lipgloss.Style,
 ) (mark, cell string) {
 	if line == nil {
 		return "  ", styleEmpty.Render(strings.Repeat("░", colW))

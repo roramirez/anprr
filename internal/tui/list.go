@@ -144,7 +144,7 @@ func (m ListModel) selectedPR() (github.PR, bool) {
 	return prs[m.cursor], true
 }
 
-func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) {
+func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) { //nolint:gocognit,cyclop
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -176,7 +176,7 @@ func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cach
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case msg.String() == "enter":
+		case msg.String() == keyEnter:
 			if pr, ok := m.selectedPR(); ok {
 				return m, navigateToDetail(pr, false)
 			}
@@ -399,7 +399,7 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 	if len(title) > titleW {
 		title = title[:titleW-1] + "…"
 	} else {
-		title = title + strings.Repeat(" ", titleW-len(title))
+		title += strings.Repeat(" ", titleW-len(title))
 	}
 
 	return cursor +
@@ -440,13 +440,13 @@ func statusDot(pr github.PR) (string, lipgloss.Style) {
 	}
 	switch pr.ReviewStatus {
 	case github.StatusApproved:
-		return "●", StyleStatusApproved
+		return dotFilled, StyleStatusApproved
 	case github.StatusChangesRequested:
-		return "●", StyleStatusChanges
+		return dotFilled, StyleStatusChanges
 	case github.StatusConflict:
-		return "●", StyleStatusConflict
+		return dotFilled, StyleStatusConflict
 	default:
-		return "●", StyleStatusPending
+		return dotFilled, StyleStatusPending
 	}
 }
 

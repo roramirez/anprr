@@ -169,7 +169,7 @@ func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Ca
 
 		case detailStateSubmitting:
 			// safety escape: if the request hangs or never resolves, b/esc returns to ready
-			if msg.String() == "b" || msg.String() == "esc" {
+			if msg.String() == "b" || msg.String() == keyEsc {
 				m = m.resetToReady()
 			}
 			return m, nil
@@ -195,7 +195,7 @@ func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Ca
 //	esc       → cancel
 func (m DetailModel) handleApproveConfirm(msg tea.KeyMsg, client *github.Client) (DetailModel, tea.Cmd) {
 	switch msg.String() {
-	case "y", "enter":
+	case "y", keyEnter:
 		m.state = detailStateSubmitting
 		return m, submitReviewCmd(client, m.pr, github.ReviewApprove, "", m.pendingComments)
 	case "c":
@@ -205,7 +205,7 @@ func (m DetailModel) handleApproveConfirm(msg tea.KeyMsg, client *github.Client)
 		m.input.SetWidth(m.width - 4)
 		m.input.Focus()
 		return m, textarea.Blink
-	case "esc":
+	case keyEsc:
 		m.state = detailStateReady
 	}
 	return m, nil
@@ -219,7 +219,7 @@ func (m DetailModel) handleApproveConfirm(msg tea.KeyMsg, client *github.Client)
 //	esc       → cancel
 func (m DetailModel) handleMergeConfirm(msg tea.KeyMsg, client *github.Client) (DetailModel, tea.Cmd) {
 	switch msg.String() {
-	case "s", "enter":
+	case "s", keyEnter:
 		m.state = detailStateSubmitting
 		return m, mergePRCmd(client, m.pr, github.MergeMethodSquash)
 	case "m":
@@ -228,7 +228,7 @@ func (m DetailModel) handleMergeConfirm(msg tea.KeyMsg, client *github.Client) (
 	case "r":
 		m.state = detailStateSubmitting
 		return m, mergePRCmd(client, m.pr, github.MergeMethodRebase)
-	case "esc":
+	case keyEsc:
 		m.state = detailStateReady
 	}
 	return m, nil
@@ -301,7 +301,7 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 		return m, fetchDiffCmd(client, cache, m.pr)
 	case "w":
 		return m, openBrowserCmd(m.pr.URL)
-	case "b", "esc":
+	case "b", keyEsc:
 		return m, func() tea.Msg { return NavigateToListMsg{} }
 	case "q":
 		return m, tea.Quit
@@ -312,7 +312,7 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 	}
 }
 
-func (m DetailModel) handleLineSelect(msg tea.KeyMsg, client *github.Client) (DetailModel, tea.Cmd) {
+func (m DetailModel) handleLineSelect(msg tea.KeyMsg, _ *github.Client) (DetailModel, tea.Cmd) {
 	switch msg.String() {
 	case "s":
 		if m.diffView == viewUnified {
@@ -330,7 +330,7 @@ func (m DetailModel) handleLineSelect(msg tea.KeyMsg, client *github.Client) (De
 		m.lineCursor = m.prevCommentable(m.lineCursor - 1)
 		m.scrollToCursor()
 		m.rerender()
-	case "n", "enter":
+	case "n", keyEnter:
 		// open comment input for this line
 		dl := m.diffLines[m.lineCursor]
 		m.state = detailStateCommentInput
@@ -339,7 +339,7 @@ func (m DetailModel) handleLineSelect(msg tea.KeyMsg, client *github.Client) (De
 		m.input.SetWidth(m.width - 4)
 		m.input.Focus()
 		return m, textarea.Blink
-	case "esc", "q":
+	case keyEsc, "q":
 		m.state = detailStateReady
 		m.lineCursor = 0
 		m.rerender()
@@ -384,7 +384,7 @@ func (m DetailModel) handleCommentInput(msg tea.KeyMsg, client *github.Client) (
 			return m, postCommentCmd(client, owner, repo, m.pr.Number, body)
 		}
 
-	case "esc":
+	case keyEsc:
 		switch m.pending {
 		case actionInlineComment:
 			m.state = detailStateLineSelect
@@ -726,7 +726,9 @@ func openBrowserCmd(url string) tea.Cmd {
 		default:
 			cmd = exec.Command("xdg-open", url)
 		}
-		cmd.Start()
+		if err := cmd.Start(); err != nil {
+			return nil
+		}
 		return nil
 	}
 }
