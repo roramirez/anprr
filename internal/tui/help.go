@@ -24,6 +24,7 @@ var helpEntries = []helpEntry{
 	{key: "f / F", desc: "Refresh  /  load more PRs"},
 	{section: "Review actions"},
 	{key: "a", desc: "Approve PR (asks for optional comment)"},
+	{key: "m", desc: "Merge PR (squash / merge commit / rebase)"},
 	{key: "r", desc: "Request changes (opens comment box)"},
 	{key: "c", desc: "Post comment (opens comment box)"},
 	{section: "Inline comments (detail screen)"},

@@ -115,6 +115,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail, cmd = updateDetailDiff(m.detail, msg, m.syntaxHL)
 		return m, cmd
 
+	case MergeDoneMsg:
+		m.cache.Invalidate()
+		if msg.Err != nil {
+			return m, statusCmd("Merge failed: "+msg.Err.Error(), true)
+		}
+		m.active = screenList
+		return m, tea.Batch(
+			statusCmd("✓ PR merged", false),
+			fetchPRsCmd(m.client, m.cache, m.repos),
+		)
+
 	case ReviewDoneMsg:
 		m.cache.Invalidate()
 		if msg.Err != nil {

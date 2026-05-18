@@ -30,6 +30,7 @@ A terminal UI for reviewing GitHub pull requests — without leaving the termina
 - **Colored unified and split diff** (`s` to toggle) with optional syntax highlighting per language
 - **Inline review comments** — navigate lines with `n`, add comments per line, send all together with the review
 - **Approve confirmation** — `a` shows a prompt: approve now or add a comment first
+- **Merge from TUI** — `m` selects squash / merge commit / rebase without leaving the terminal
 - **Multi-line comment box** — `r` / `c` open a resizable textarea (`ctrl+d` to submit, `enter` for new line)
 - **Direct GitHub API** — no dependency on `gh` CLI
 
@@ -101,6 +102,7 @@ syntax = false   # opt-in syntax highlighting (uses chroma)
 | `s` | Toggle unified / split diff |
 | `n` | Enter line-select mode (inline comments) |
 | `a` | Approve PR (confirm prompt) |
+| `m` | Merge PR (squash / merge commit / rebase) |
 | `r` | Request changes |
 | `c` | Post comment |
 | `w` | Open PR in browser |

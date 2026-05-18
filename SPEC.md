@@ -146,7 +146,21 @@ Esta tab NO usa la condición genérica "no es mío + pendiente" — es exacta.
 
 **Diff viewport:** uses `bubbles/viewport`. Supports `j`/`k`, `pgdn`/`pgup`, arrow keys, and mouse wheel scroll.
 
-**Comment input:** pressing `c` or `r` opens an inline text input at the bottom of the screen (replaces the footer). `enter` submits, `esc` cancels.
+**Merge (`m`):** opens a method selection prompt:
+```
+╭─ Merge PR #42? ────────────────────────────────╮
+│  s / enter    Squash and merge (recommended)   │
+│  m            Merge commit                     │
+│  r            Rebase and merge                 │
+│  esc          Cancel                           │
+╰────────────────────────────────────────────────╯
+```
+- Blocked if PR is a draft → `"Cannot merge a draft PR"`
+- Blocked if `mergeable == CONFLICTING` → `"PR has conflicts — resolve before merging"`
+- On success: cache invalidated, returns to list, status bar shows `✓ PR merged`
+- API: `PUT /repos/{owner}/{repo}/pulls/{number}/merge` with `{"merge_method": "squash"|"merge"|"rebase"}`
+
+**Comment input:** pressing `c` or `r` opens a multi-line textarea at the bottom of the screen. `ctrl+d` submits, `esc` cancels, `enter` adds a new line.
 
 **Loading state:** spinner while fetching diff.
 
@@ -245,6 +259,19 @@ Body:
 ```json
 { "body": "..." }
 ```
+
+### REST — merge PR
+
+`PUT https://api.github.com/repos/{owner}/{repo}/pulls/{number}/merge`
+
+Body:
+```json
+{ "merge_method": "squash" }
+```
+
+`merge_method` values: `squash` (default), `merge`, `rebase`.
+
+HTTP 405 = not mergeable (conflicts or branch protections). HTTP 409 = conflict.
 
 ### REST — get current user
 

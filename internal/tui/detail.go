@@ -22,6 +22,7 @@ const (
 	detailStateReady                      // normal scroll mode
 	detailStateLineSelect                 // line-by-line cursor mode (press n to enter)
 	detailStateApproveConfirm             // confirmation prompt before approving
+	detailStateMergeConfirm               // confirmation prompt before merging
 	detailStateCommentInput               // text input for inline or general comment
 	detailStateSubmitting
 )
@@ -130,6 +131,9 @@ func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Ca
 		case detailStateApproveConfirm:
 			return m.handleApproveConfirm(msg, client)
 
+		case detailStateMergeConfirm:
+			return m.handleMergeConfirm(msg, client)
+
 		case detailStateReady:
 			return m.handleReady(msg, client, cache)
 		}
@@ -167,6 +171,29 @@ func (m DetailModel) handleApproveConfirm(msg tea.KeyMsg, client *github.Client)
 	return m, nil
 }
 
+// handleMergeConfirm handles the merge method selection prompt.
+//
+//	s / enter → squash merge (default)
+//	m         → merge commit
+//	r         → rebase
+//	esc       → cancel
+func (m DetailModel) handleMergeConfirm(msg tea.KeyMsg, client *github.Client) (DetailModel, tea.Cmd) {
+	switch msg.String() {
+	case "s", "enter":
+		m.state = detailStateSubmitting
+		return m, mergePRCmd(client, m.pr, github.MergeMethodSquash)
+	case "m":
+		m.state = detailStateSubmitting
+		return m, mergePRCmd(client, m.pr, github.MergeMethodMerge)
+	case "r":
+		m.state = detailStateSubmitting
+		return m, mergePRCmd(client, m.pr, github.MergeMethodRebase)
+	case "esc":
+		m.state = detailStateReady
+	}
+	return m, nil
+}
+
 func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *github.Cache) (DetailModel, tea.Cmd) {
 	switch msg.String() {
 	case "s":
@@ -189,6 +216,15 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 			return m, statusCmd("Cannot approve a draft PR", true)
 		}
 		m.state = detailStateApproveConfirm
+		return m, nil
+	case "m":
+		if m.pr.IsDraft {
+			return m, statusCmd("Cannot merge a draft PR", true)
+		}
+		if m.pr.Mergeable == "CONFLICTING" {
+			return m, statusCmd("PR has conflicts — resolve before merging", true)
+		}
+		m.state = detailStateMergeConfirm
 		return m, nil
 	case "r":
 		m.state = detailStateCommentInput
@@ -390,12 +426,12 @@ func (m DetailModel) view(width, height int, statusBar string) string {
 	footer := m.renderFooter(width, statusBar)
 	headerH := lipgloss.Height(header)
 	footerH := lipgloss.Height(footer)
-	// reserve extra space for the textarea box or approve confirm prompt
+	// reserve extra space for the textarea box or confirm prompts
 	switch m.state {
 	case detailStateCommentInput:
 		footerH += textareaHeight + 2 // +2 for border
-	case detailStateApproveConfirm:
-		footerH += 6 // prompt box height
+	case detailStateApproveConfirm, detailStateMergeConfirm:
+		footerH += 7 // prompt box height
 	}
 	bodyH := height - headerH - footerH
 	if bodyH < 1 {
@@ -433,6 +469,20 @@ func (m DetailModel) renderHeader(width int) string {
 func (m DetailModel) renderFooter(width int, statusBar string) string {
 	var keys string
 	switch m.state {
+	case detailStateMergeConfirm:
+		return lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#00FF7F")).
+			Padding(0, 2).
+			Width(width - 2).
+			Render(
+				StyleStatusBarOK.Render("Merge PR #"+fmt.Sprint(m.pr.Number)+"?") + "\n\n" +
+					StyleHelpKey.Render("s / enter") + StyleHelpDesc.Render("Squash and merge (recommended)") + "\n" +
+					StyleHelpKey.Render("m        ") + StyleHelpDesc.Render("Merge commit") + "\n" +
+					StyleHelpKey.Render("r        ") + StyleHelpDesc.Render("Rebase and merge") + "\n" +
+					StyleHelpKey.Render("esc      ") + StyleHelpDesc.Render("Cancel"),
+			)
+
 	case detailStateApproveConfirm:
 		pending := ""
 		if len(m.pendingComments) > 0 {
@@ -473,7 +523,7 @@ func (m DetailModel) renderFooter(width int, statusBar string) string {
 			viewLabel = "[split]"
 		}
 		keys = StyleFooter.Render(fmt.Sprintf(
-			"s=%s  n=inline  a=approve  r=changes  c=comment  f=refresh  w=web  b=back  ?=help  q=quit",
+			"s=%s  n=inline  a=approve  m=merge  r=changes  c=comment  f=refresh  w=web  b=back  ?=help  q=quit",
 			viewLabel,
 		))
 	}
@@ -499,6 +549,14 @@ func postCommentCmd(client *github.Client, owner, repo string, number int, body 
 	return func() tea.Msg {
 		err := client.PostComment(owner, repo, number, body)
 		return CommentDoneMsg{Err: err}
+	}
+}
+
+func mergePRCmd(client *github.Client, pr github.PR, method github.MergeMethod) tea.Cmd {
+	return func() tea.Msg {
+		owner, repo := splitRepo(pr.Repo)
+		err := client.MergePR(owner, repo, pr.Number, method)
+		return MergeDoneMsg{Err: err}
 	}
 }
 
