@@ -40,29 +40,33 @@ func Split(lines []DiffLine) []SplitRow {
 			i++
 
 		case DiffRemoved, DiffAdded:
-			// collect the full change block: all removes then all adds
 			removes, removeIdxs := collectType(lines, i, DiffRemoved)
 			i += len(removes)
 			adds, addIdxs := collectType(lines, i, DiffAdded)
 			i += len(adds)
+			rows = append(rows, zipChangeBlock(lines, removeIdxs, addIdxs)...)
+		}
+	}
+	return rows
+}
 
-			// zip removes and adds into paired rows
-			maxLen := len(removes)
-			if len(adds) > maxLen {
-				maxLen = len(adds)
-			}
-			for j := 0; j < maxLen; j++ {
-				row := SplitRow{LeftIdx: -1, RightIdx: -1}
-				if j < len(removes) {
-					row.Left = &lines[removeIdxs[j]]
-					row.LeftIdx = removeIdxs[j]
-				}
-				if j < len(adds) {
-					row.Right = &lines[addIdxs[j]]
-					row.RightIdx = addIdxs[j]
-				}
-				rows = append(rows, row)
-			}
+// zipChangeBlock pairs remove and add indices into SplitRows, filling empty
+// slots with nil when one side is longer than the other.
+func zipChangeBlock(lines []DiffLine, removeIdxs, addIdxs []int) []SplitRow {
+	maxLen := len(removeIdxs)
+	if len(addIdxs) > maxLen {
+		maxLen = len(addIdxs)
+	}
+	rows := make([]SplitRow, maxLen)
+	for j := range rows {
+		rows[j] = SplitRow{LeftIdx: -1, RightIdx: -1}
+		if j < len(removeIdxs) {
+			rows[j].Left = &lines[removeIdxs[j]]
+			rows[j].LeftIdx = removeIdxs[j]
+		}
+		if j < len(addIdxs) {
+			rows[j].Right = &lines[addIdxs[j]]
+			rows[j].RightIdx = addIdxs[j]
 		}
 	}
 	return rows
