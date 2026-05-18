@@ -144,9 +144,7 @@ func (m ListModel) selectedPR() (github.PR, bool) {
 	return prs[m.cursor], true
 }
 
-func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) { //nolint:gocognit,cyclop
-	var cmds []tea.Cmd
-
+func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -157,69 +155,76 @@ func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cach
 		if m.state != listStateReady {
 			return m, nil
 		}
-		prs := m.visiblePRs()
-		switch {
-		case msg.String() == "1":
-			m.tab = tabMyPRs
-			m.cursor = 0
-		case msg.String() == "2":
-			m.tab = tabNeedsReview
-			m.cursor = 0
-		case msg.String() == "3":
-			m.tab = tabAllOpen
-			m.cursor = 0
-		case msg.String() == "j" || msg.String() == "down":
-			if m.cursor < len(prs)-1 {
-				m.cursor++
-			}
-		case msg.String() == "k" || msg.String() == "up":
-			if m.cursor > 0 {
-				m.cursor--
-			}
-		case msg.String() == keyEnter:
-			if pr, ok := m.selectedPR(); ok {
-				return m, navigateToDetail(pr, false)
-			}
-		case msg.String() == "a":
-			if pr, ok := m.selectedPR(); ok {
-				if pr.IsDraft {
-					return m, statusCmd("Cannot approve a draft PR", true)
-				}
-				return m, submitReviewCmd(client, pr, github.ReviewApprove, "", nil)
-			}
-		case msg.String() == "r":
-			if pr, ok := m.selectedPR(); ok {
-				return m, navigateToDetail(pr, true)
-			}
-		case msg.String() == "c":
-			if pr, ok := m.selectedPR(); ok {
-				return m, navigateToDetail(pr, true)
-			}
-		case msg.String() == "f":
-			cache.Invalidate()
-			m.state = listStateLoading
-			cmds = append(cmds, fetchPRsCmd(client, cache, repos))
-			cmds = append(cmds, searchReviewRequestedCmd(client, cache, repos))
-		case msg.String() == "F":
-			// load more for repos that have next page
-			for repo, hasNext := range m.hasNextPage {
-				if hasNext {
-					cursor := m.endCursor[repo]
-					cmds = append(cmds, loadMoreCmd(client, cache, repo, cursor))
-				}
-			}
-		case msg.String() == "q":
-			return m, tea.Quit
+		var keyCmd tea.Cmd
+		m, keyCmd = m.handleKey(msg, client, cache, repos)
+		if m.state == listStateLoading {
+			var spinCmd tea.Cmd
+			m.spinner, spinCmd = m.spinner.Update(msg)
+			return m, tea.Batch(keyCmd, spinCmd)
 		}
+		return m, keyCmd
 	}
 
 	if m.state == listStateLoading {
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
-		cmds = append(cmds, cmd)
+		return m, cmd
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+func (m ListModel) handleKey(msg tea.KeyMsg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) { //nolint:gocognit,cyclop
+	prs := m.visiblePRs()
+	switch {
+	case msg.String() == "1":
+		m.tab = tabMyPRs
+		m.cursor = 0
+	case msg.String() == "2":
+		m.tab = tabNeedsReview
+		m.cursor = 0
+	case msg.String() == "3":
+		m.tab = tabAllOpen
+		m.cursor = 0
+	case msg.String() == "j" || msg.String() == "down":
+		if m.cursor < len(prs)-1 {
+			m.cursor++
+		}
+	case msg.String() == "k" || msg.String() == "up":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case msg.String() == keyEnter:
+		if pr, ok := m.selectedPR(); ok {
+			return m, navigateToDetail(pr, false)
+		}
+	case msg.String() == "a":
+		if pr, ok := m.selectedPR(); ok {
+			if pr.IsDraft {
+				return m, statusCmd("Cannot approve a draft PR", true)
+			}
+			return m, submitReviewCmd(client, pr, github.ReviewApprove, "", nil)
+		}
+	case msg.String() == "r", msg.String() == "c":
+		if pr, ok := m.selectedPR(); ok {
+			return m, navigateToDetail(pr, true)
+		}
+	case msg.String() == "f":
+		cache.Invalidate()
+		m.state = listStateLoading
+		return m, tea.Batch(fetchPRsCmd(client, cache, repos), searchReviewRequestedCmd(client, cache, repos))
+	case msg.String() == "F":
+		var cmds []tea.Cmd
+		for repo, hasNext := range m.hasNextPage {
+			if hasNext {
+				cmds = append(cmds, loadMoreCmd(client, cache, repo, m.endCursor[repo]))
+			}
+		}
+		return m, tea.Batch(cmds...)
+	case msg.String() == "q":
+		return m, tea.Quit
+	}
+	return m, nil
 }
 
 func updateListModel(m ListModel, msg PRsLoadedMsg) (ListModel, []tea.Cmd) {

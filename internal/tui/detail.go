@@ -53,7 +53,13 @@ const (
 	detailTabComments                     // [3] comments
 )
 
-const textareaHeight = 5 // visible lines in the comment box
+const (
+	textareaHeight    = 5 // visible lines in the comment box
+	textareaCharLimit = 65536
+	inputWidthOffset  = 4 // border + padding consumed by the textarea box
+	borderWidthOffset = 2 // gutter/border consumed by the viewport and header
+	vpHeightOffset    = 5 // rows consumed by header, tabs, and footer
+)
 
 type DetailModel struct {
 	state   detailState
@@ -87,7 +93,7 @@ func newDetailModel() DetailModel {
 
 	ta := textarea.New()
 	ta.Placeholder = "Enter your comment…"
-	ta.CharLimit = 65536
+	ta.CharLimit = textareaCharLimit
 	ta.SetHeight(textareaHeight)
 	ta.ShowLineNumbers = false
 
@@ -102,12 +108,12 @@ func newDetailModel() DetailModel {
 func (m DetailModel) setSize(w, h int) DetailModel {
 	m.width = w
 	m.height = h
-	m.input.SetWidth(w - 4) // -4 for border + padding
-	vpH := h - 5
+	m.input.SetWidth(w - inputWidthOffset)
+	vpH := h - vpHeightOffset
 	if vpH < 1 {
 		vpH = 1
 	}
-	m.vp = viewport.New(w-2, vpH) // -2 for gutter
+	m.vp = viewport.New(w-borderWidthOffset, vpH)
 	return m
 }
 
@@ -127,7 +133,7 @@ func (m DetailModel) setPR(pr github.PR, focusComment bool) DetailModel {
 		m.pending = actionRequestChanges
 		m.input.Placeholder = "Describe the changes needed…"
 		m.input.Focus()
-		m.input.SetWidth(m.width - 4)
+		m.input.SetWidth(m.width - inputWidthOffset)
 	}
 	return m
 }
@@ -202,7 +208,7 @@ func (m DetailModel) handleApproveConfirm(msg tea.KeyMsg, client *github.Client)
 		m.state = detailStateCommentInput
 		m.pending = actionApprove
 		m.input.Placeholder = "Optional comment with your approval…"
-		m.input.SetWidth(m.width - 4)
+		m.input.SetWidth(m.width - inputWidthOffset)
 		m.input.Focus()
 		return m, textarea.Blink
 	case keyEsc:
@@ -285,14 +291,14 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 		m.state = detailStateCommentInput
 		m.pending = actionRequestChanges
 		m.input.Placeholder = "Describe the changes needed…"
-		m.input.SetWidth(m.width - 4)
+		m.input.SetWidth(m.width - inputWidthOffset)
 		m.input.Focus()
 		return m, textarea.Blink
 	case "c":
 		m.state = detailStateCommentInput
 		m.pending = actionComment
 		m.input.Placeholder = "Enter your comment…"
-		m.input.SetWidth(m.width - 4)
+		m.input.SetWidth(m.width - inputWidthOffset)
 		m.input.Focus()
 		return m, textarea.Blink
 	case "f":
@@ -336,7 +342,7 @@ func (m DetailModel) handleLineSelect(msg tea.KeyMsg, _ *github.Client) (DetailM
 		m.state = detailStateCommentInput
 		m.pending = actionInlineComment
 		m.input.Placeholder = fmt.Sprintf("Comment on %s…", diff.FormatPosition(dl))
-		m.input.SetWidth(m.width - 4)
+		m.input.SetWidth(m.width - inputWidthOffset)
 		m.input.Focus()
 		return m, textarea.Blink
 	case keyEsc, "q":
@@ -435,7 +441,7 @@ func (m *DetailModel) rerender() {
 	if m.diffView == viewSplit {
 		rendered = diff.RenderSplit(m.diffLines, m.width, hl, cursor, m.commentedLines)
 	} else {
-		rendered = diff.Render(m.diffLines, m.width-2, hl, cursor, m.commentedLines)
+		rendered = diff.Render(m.diffLines, m.width-borderWidthOffset, hl, cursor, m.commentedLines)
 	}
 	m.vp.SetContent(rendered)
 }
@@ -613,40 +619,39 @@ func renderCheckLabel(state string) string {
 	}
 }
 
+// renderConfirmBox renders a rounded green-bordered prompt box.
+func renderConfirmBox(width int, content string) string {
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#00FF7F")).
+		Padding(0, 2).
+		Width(width - borderWidthOffset).
+		Render(content)
+}
+
 func (m DetailModel) renderFooter(width int, statusBar string) string {
 	var keys string
 	switch m.state {
 	case detailStateMergeConfirm:
-		return lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#00FF7F")).
-			Padding(0, 2).
-			Width(width - 2).
-			Render(
-				StyleStatusBarOK.Render("Merge PR #"+fmt.Sprint(m.pr.Number)+"?") + "\n\n" +
-					StyleHelpKey.Render("s / enter") + StyleHelpDesc.Render("Squash and merge (recommended)") + "\n" +
-					StyleHelpKey.Render("m        ") + StyleHelpDesc.Render("Merge commit") + "\n" +
-					StyleHelpKey.Render("r        ") + StyleHelpDesc.Render("Rebase and merge") + "\n" +
-					StyleHelpKey.Render("esc      ") + StyleHelpDesc.Render("Cancel"),
-			)
+		return renderConfirmBox(width,
+			StyleStatusBarOK.Render("Merge PR #"+fmt.Sprint(m.pr.Number)+"?")+"\n\n"+
+				StyleHelpKey.Render("s / enter")+StyleHelpDesc.Render("Squash and merge (recommended)")+"\n"+
+				StyleHelpKey.Render("m        ")+StyleHelpDesc.Render("Merge commit")+"\n"+
+				StyleHelpKey.Render("r        ")+StyleHelpDesc.Render("Rebase and merge")+"\n"+
+				StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
+		)
 
 	case detailStateApproveConfirm:
 		pending := ""
 		if len(m.pendingComments) > 0 {
 			pending = fmt.Sprintf("  (%d inline comment(s) will be included)", len(m.pendingComments))
 		}
-		prompt := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#00FF7F")).
-			Padding(0, 2).
-			Width(width - 2).
-			Render(
-				StyleStatusBarOK.Render("Approve PR #"+fmt.Sprint(m.pr.Number)+"?") + pending + "\n\n" +
-					StyleHelpKey.Render("y / enter") + StyleHelpDesc.Render("Approve now") + "\n" +
-					StyleHelpKey.Render("c        ") + StyleHelpDesc.Render("Approve with a comment") + "\n" +
-					StyleHelpKey.Render("esc      ") + StyleHelpDesc.Render("Cancel"),
-			)
-		return prompt
+		return renderConfirmBox(width,
+			StyleStatusBarOK.Render("Approve PR #"+fmt.Sprint(m.pr.Number)+"?")+pending+"\n\n"+
+				StyleHelpKey.Render("y / enter")+StyleHelpDesc.Render("Approve now")+"\n"+
+				StyleHelpKey.Render("c        ")+StyleHelpDesc.Render("Approve with a comment")+"\n"+
+				StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
+		)
 
 	case detailStateCommentInput:
 		pos := ""
