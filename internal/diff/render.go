@@ -69,7 +69,7 @@ func (h *ChromaHighlighter) Tokenize(lang, line string) []Token {
 	for _, t := range iter.Tokens() {
 		color := ""
 		if entry := h.style.Get(t.Type); entry.Colour.IsSet() {
-			color = "#" + entry.Colour.String()
+			color = entry.Colour.String() // already includes leading #
 		}
 		result = append(result, Token{Text: t.Value, Color: color})
 	}
