@@ -18,11 +18,11 @@ import (
 type detailState int
 
 const (
-	detailStateLoading      detailState = iota
-	detailStateReady                    // normal scroll mode
-	detailStateLineSelect               // line-by-line cursor mode (press n to enter)
-	detailStateApproveConfirm           // confirmation prompt before approving
-	detailStateCommentInput             // text input for inline or general comment
+	detailStateLoading        detailState = iota
+	detailStateReady                      // normal scroll mode
+	detailStateLineSelect                 // line-by-line cursor mode (press n to enter)
+	detailStateApproveConfirm             // confirmation prompt before approving
+	detailStateCommentInput               // text input for inline or general comment
 	detailStateSubmitting
 )
 
@@ -58,7 +58,7 @@ type DetailModel struct {
 
 	// diff data
 	diffLines []diff.DiffLine
-	diffView viewMode
+	diffView  viewMode
 
 	// inline review state
 	lineCursor      int                    // index into diffLines for the selected line
@@ -145,9 +145,10 @@ func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Ca
 }
 
 // handleApproveConfirm handles the approve confirmation prompt.
-//   y / enter → approve without extra comment
-//   c         → approve with a comment (opens textarea)
-//   esc       → cancel
+//
+//	y / enter → approve without extra comment
+//	c         → approve with a comment (opens textarea)
+//	esc       → cancel
 func (m DetailModel) handleApproveConfirm(msg tea.KeyMsg, client *github.Client) (DetailModel, tea.Cmd) {
 	switch msg.String() {
 	case "y", "enter":

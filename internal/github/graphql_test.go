@@ -72,7 +72,7 @@ func TestIsBotAuthor(t *testing.T) {
 	}{
 		{"roramirez", "User", false},
 		{"dependabot[bot]", "Bot", true},
-		{"app/dependabot", "User", true},  // login prefix heuristic
+		{"app/dependabot", "User", true}, // login prefix heuristic
 		{"renovate[bot]", "Bot", true},
 		{"some-user", "User", false},
 		{"mannequin-user", "Mannequin", true},

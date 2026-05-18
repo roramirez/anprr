@@ -43,9 +43,9 @@ func main() {
 
 	// launch TUI
 	fs := flag.NewFlagSet("anprr", flag.ExitOnError)
-	flagToken  := fs.String("token", "", "GitHub personal access token")
+	flagToken := fs.String("token", "", "GitHub personal access token")
 	flagSyntax := fs.Bool("syntax", false, "Enable syntax highlighting in diffs")
-	flagDemo   := fs.Bool("demo", false, "Run with mock data (no token required)")
+	flagDemo := fs.Bool("demo", false, "Run with mock data (no token required)")
 	fs.Parse(os.Args[1:])
 
 	var (
@@ -56,9 +56,9 @@ func main() {
 	)
 
 	if *flagDemo {
-		client   = github.NewClient("demo-token", demo.Transport{})
-		cache    = github.NewCache()
-		repos    = []string{"acme/backend"}
+		client = github.NewClient("demo-token", demo.Transport{})
+		cache = github.NewCache()
+		repos = []string{"acme/backend"}
 		syntaxHL = false
 	} else {
 		cfgPath := config.DefaultConfigPath()
@@ -76,9 +76,9 @@ func main() {
 			fmt.Fprintln(os.Stderr, "No repositories configured. Run: anprr repos add <owner/repo>")
 			os.Exit(1)
 		}
-		client   = github.NewClient(token, nil)
-		cache    = github.NewCache()
-		repos    = cfg.Repos
+		client = github.NewClient(token, nil)
+		cache = github.NewCache()
+		repos = cfg.Repos
 		syntaxHL = cfg.Syntax || *flagSyntax
 	}
 

@@ -96,8 +96,8 @@ func (c *Client) SearchReviewRequested(repos []string, cache *Cache) (map[string
 
 		var resp struct {
 			Items []struct {
-				Number          int    `json:"number"`
-				RepositoryURL   string `json:"repository_url"` // "https://api.github.com/repos/owner/name"
+				Number        int    `json:"number"`
+				RepositoryURL string `json:"repository_url"` // "https://api.github.com/repos/owner/name"
 			} `json:"items"`
 			TotalCount int `json:"total_count"`
 		}

@@ -28,21 +28,21 @@ const (
 type tabIndex int
 
 const (
-	tabMyPRs      tabIndex = iota // [1] PRs I authored
-	tabNeedsReview                // [2] PRs that specifically need my attention
-	tabAllOpen                    // [3] All open PRs not authored by me
+	tabMyPRs       tabIndex = iota // [1] PRs I authored
+	tabNeedsReview                 // [2] PRs that specifically need my attention
+	tabAllOpen                     // [3] All open PRs not authored by me
 )
 
 type ListModel struct {
-	state       listState
-	tab         tabIndex
-	allPRs      []github.PR // all PRs fetched via GraphQL
-	cursor      int
-	currentUser string
-	width       int
-	height      int
-	spinner     spinner.Model
-	err         error
+	state              listState
+	tab                tabIndex
+	allPRs             []github.PR // all PRs fetched via GraphQL
+	cursor             int
+	currentUser        string
+	width              int
+	height             int
+	spinner            spinner.Model
+	err                error
 	hasNextPage        map[string]bool   // repo → has more pages
 	endCursor          map[string]string // repo → cursor
 	reviewRequestedSet map[string]bool   // "owner/repo#number" → true, from Search API

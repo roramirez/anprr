@@ -136,8 +136,8 @@ func (c *Client) GraphQL(query string, variables map[string]interface{}, dst int
 	}
 
 	var wrapper struct {
-		Data   json.RawMessage   `json:"data"`
-		Errors []graphqlError    `json:"errors"`
+		Data   json.RawMessage `json:"data"`
+		Errors []graphqlError  `json:"errors"`
 	}
 	if err := json.Unmarshal(data, &wrapper); err != nil {
 		return err
