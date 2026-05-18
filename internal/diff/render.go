@@ -89,35 +89,35 @@ func (h *ChromaHighlighter) TokenizeFile(path, lang string, lines []string) [][]
 func splitTokensByLine(rawTokens []chroma.Token, colorFor func(chroma.TokenType) string, numLines int) [][]Token {
 	result := make([][]Token, 0, numLines)
 	var current []Token
-
 	for _, t := range rawTokens {
-		color := colorFor(t.Type)
-		text := t.Value
-		for {
-			nl := strings.Index(text, "\n")
-			if nl < 0 {
-				if text != "" {
-					current = append(current, Token{Text: text, Color: color})
-				}
-				break
-			}
-			if nl > 0 {
-				current = append(current, Token{Text: text[:nl], Color: color})
-			}
-			result = append(result, current)
-			current = nil
-			text = text[nl+1:]
-		}
+		current, result = splitAtNewlines(t.Value, colorFor(t.Type), current, result)
 	}
-	// flush last line (may not end with \n)
 	if len(current) > 0 {
 		result = append(result, current)
 	}
-	// ensure we always return exactly numLines slices
 	for len(result) < numLines {
 		result = append(result, []Token{})
 	}
 	return result[:numLines]
+}
+
+// splitAtNewlines appends segments of text (split at newlines) to current and result.
+func splitAtNewlines(text, color string, current []Token, result [][]Token) ([]Token, [][]Token) {
+	for {
+		nl := strings.Index(text, "\n")
+		if nl < 0 {
+			if text != "" {
+				current = append(current, Token{Text: text, Color: color})
+			}
+			return current, result
+		}
+		if nl > 0 {
+			current = append(current, Token{Text: text[:nl], Color: color})
+		}
+		result = append(result, current)
+		current = nil
+		text = text[nl+1:]
+	}
 }
 
 // lipgloss styles for each diff line type
@@ -157,18 +157,26 @@ var (
 				Bold(true)
 )
 
+type fileGroup struct {
+	path string
+	lang string
+	idxs []int
+}
+
 // preTokenize groups diff lines by file path and calls TokenizeFile once per file,
 // returning a map of line-index → pre-computed tokens.
 func preTokenize(lines []DiffLine, hl Highlighter) map[int][]Token {
-	// group line indices by path (preserving order)
-	type group struct {
-		path string
-		lang string
-		idxs []int
+	result := make(map[int][]Token, len(lines))
+	for _, g := range groupByPath(lines) {
+		applyGroupTokens(lines, g, hl, result)
 	}
-	seen := map[string]int{} // path → group index
-	var groups []group
+	return result
+}
 
+// groupByPath groups diff line indices by their file path, preserving order.
+func groupByPath(lines []DiffLine) []fileGroup {
+	seen := map[string]int{}
+	var groups []fileGroup
 	for i, dl := range lines {
 		if dl.Path == "" {
 			continue
@@ -177,31 +185,27 @@ func preTokenize(lines []DiffLine, hl Highlighter) map[int][]Token {
 		if !ok {
 			gi = len(groups)
 			seen[dl.Path] = gi
-			groups = append(groups, group{path: dl.Path, lang: dl.Lang})
+			groups = append(groups, fileGroup{path: dl.Path, lang: dl.Lang})
 		}
 		groups[gi].idxs = append(groups[gi].idxs, i)
 	}
+	return groups
+}
 
-	result := make(map[int][]Token, len(lines))
-
-	for _, g := range groups {
-		// extract raw source lines (stripped of diff prefix)
-		rawLines := make([]string, len(g.idxs))
-		for j, idx := range g.idxs {
-			rawLines[j] = stripDiffPrefix(lines[idx].Text)
-		}
-
-		tokensByLine := hl.TokenizeFile(g.path, g.lang, rawLines)
-
-		for j, idx := range g.idxs {
-			if j < len(tokensByLine) {
-				result[idx] = tokensByLine[j]
-			} else {
-				result[idx] = []Token{}
-			}
+// applyGroupTokens tokenizes one file group and stores results into the map.
+func applyGroupTokens(lines []DiffLine, g fileGroup, hl Highlighter, result map[int][]Token) {
+	rawLines := make([]string, len(g.idxs))
+	for j, idx := range g.idxs {
+		rawLines[j] = stripDiffPrefix(lines[idx].Text)
+	}
+	tokensByLine := hl.TokenizeFile(g.path, g.lang, rawLines)
+	for j, idx := range g.idxs {
+		if j < len(tokensByLine) {
+			result[idx] = tokensByLine[j]
+		} else {
+			result[idx] = []Token{}
 		}
 	}
-	return result
 }
 
 // stripDiffPrefix removes the leading +, -, or space from a diff line.
@@ -263,18 +267,23 @@ func renderLineWithTokens(line DiffLine, width int, tokens []Token) string {
 	}
 }
 
+// appendTokens writes each token to sb, applying its color on top of base style.
+func appendTokens(sb *strings.Builder, tokens []Token, base lipgloss.Style) {
+	for _, tok := range tokens {
+		if tok.Color != "" {
+			sb.WriteString(base.Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
+		} else {
+			sb.WriteString(base.Render(tok.Text))
+		}
+	}
+}
+
 func renderContextLine(line DiffLine, width int, tokens []Token) string {
 	if len(tokens) == 0 {
 		return styleContext.Render(padRight(line.Text, width))
 	}
 	var sb strings.Builder
-	for _, tok := range tokens {
-		if tok.Color != "" {
-			sb.WriteString(styleContext.Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
-		} else {
-			sb.WriteString(styleContext.Render(tok.Text))
-		}
-	}
+	appendTokens(&sb, tokens, styleContext)
 	visibleLen := visibleLength(joinTokensNoColor(tokens))
 	if visibleLen < width {
 		sb.WriteString(styleContext.Render(strings.Repeat(" ", width-visibleLen)))
@@ -286,25 +295,9 @@ func renderColoredLine(line DiffLine, width int, tokens []Token, base, prefixSty
 	if len(tokens) == 0 {
 		return base.Render(padRight(line.Text, width))
 	}
-
 	var sb strings.Builder
-	// the first token is the diff prefix (+/-) — render with brighter gutter style
-	firstIdx := 0
-	prefix := line.Text[:1]
-	if prefix == "+" || prefix == "-" {
-		sb.WriteString(prefixStyle.Render(prefix))
-		firstIdx = 0 // tokens already have the prefix stripped — skip rendering it from tokens
-	}
-	_ = firstIdx
-
-	for _, tok := range tokens {
-		if tok.Color != "" {
-			sb.WriteString(base.Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
-		} else {
-			sb.WriteString(base.Render(tok.Text))
-		}
-	}
-
+	sb.WriteString(prefixStyle.Render(line.Text[:1]))
+	appendTokens(&sb, tokens, base)
 	visibleLen := 1 + visibleLength(joinTokensNoColor(tokens)) // +1 for the prefix char
 	if visibleLen < width {
 		sb.WriteString(base.Render(strings.Repeat(" ", width-visibleLen)))
