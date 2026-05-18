@@ -72,6 +72,22 @@ func (c *Client) SubmitReview(owner, repo string, number int, event ReviewEvent,
 	return c.REST("POST", path, payload, nil)
 }
 
+// MergeMethod controls how a PR is merged.
+type MergeMethod string
+
+const (
+	MergeMethodMerge  MergeMethod = "merge"
+	MergeMethodSquash MergeMethod = "squash"
+	MergeMethodRebase MergeMethod = "rebase"
+)
+
+// MergePR merges a pull request using the given method.
+func (c *Client) MergePR(owner, repo string, number int, method MergeMethod) error {
+	path := fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, repo, number)
+	payload := map[string]string{"merge_method": string(method)}
+	return c.REST("PUT", path, payload, nil)
+}
+
 // SearchReviewRequested returns the set of open PRs across repos where the
 // authenticated user has been requested as a reviewer.
 // Keys in the returned map are "owner/repo#number".

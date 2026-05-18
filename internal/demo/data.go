@@ -231,6 +231,9 @@ func (Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 		body = wrapper
 
+	case strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/merge") && req.Method == http.MethodPut:
+		body = map[string]string{"sha": "abc123", "merged": "true", "message": "PR merged"}
+
 	case strings.Contains(path, "/pulls/") && req.Header.Get("Accept") == "application/vnd.github.v3.diff":
 		return &http.Response{
 			StatusCode: 200,

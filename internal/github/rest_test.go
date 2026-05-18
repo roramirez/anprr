@@ -172,6 +172,35 @@ func TestRateLimitHeader(t *testing.T) {
 	}
 }
 
+func TestMergePR_squash(t *testing.T) {
+	c, mt := newTestClient(200, `{"sha":"abc","merged":true,"message":"squashed"}`)
+	err := c.MergePR("owner", "repo", 42, MergeMethodSquash)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if mt.lastReq.Method != "PUT" {
+		t.Errorf("expected PUT, got %s", mt.lastReq.Method)
+	}
+	if !strings.Contains(mt.lastReq.URL.Path, "/pulls/42/merge") {
+		t.Errorf("unexpected path: %s", mt.lastReq.URL.Path)
+	}
+	var body map[string]string
+	json.Unmarshal(mt.lastReqBody, &body)
+	if body["merge_method"] != "squash" {
+		t.Errorf("expected squash, got %q", body["merge_method"])
+	}
+}
+
+func TestMergePR_rebase(t *testing.T) {
+	c, mt := newTestClient(200, `{"sha":"def","merged":true}`)
+	c.MergePR("owner", "repo", 7, MergeMethodRebase)
+	var body map[string]string
+	json.Unmarshal(mt.lastReqBody, &body)
+	if body["merge_method"] != "rebase" {
+		t.Errorf("expected rebase, got %q", body["merge_method"])
+	}
+}
+
 func TestSearchReviewRequested_parsesResults(t *testing.T) {
 	body := `{"total_count":2,"items":[
 		{"number":42,"repository_url":"https://api.github.com/repos/myorg/backend"},

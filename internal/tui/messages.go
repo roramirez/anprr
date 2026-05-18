@@ -62,6 +62,11 @@ type StatusMsg struct {
 // ClearStatusMsg clears the status bar after a timeout.
 type ClearStatusMsg struct{}
 
+// MergeDoneMsg is sent when a PR merge completes.
+type MergeDoneMsg struct {
+	Err error
+}
+
 // ReviewRequestedLoadedMsg carries the result of the Search API fetch.
 type ReviewRequestedLoadedMsg struct {
 	Set map[string]bool
