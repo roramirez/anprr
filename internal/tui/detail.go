@@ -473,13 +473,32 @@ func (m DetailModel) renderHeader(width int) string {
 	if len(m.pendingComments) > 0 {
 		pending = StyleStatusBarWarn.Render(fmt.Sprintf("  [%d comment(s) pending]", len(m.pendingComments)))
 	}
+	checkLabel := renderCheckLabel(m.pr.CheckState)
 	meta := fmt.Sprintf("author: %s  base: %s  +%d -%d",
 		m.pr.Author.Login, m.pr.BaseRef, m.pr.Additions, m.pr.Deletions)
+	if checkLabel != "" {
+		meta += "  " + checkLabel
+	}
 	if len(title) > width-2 {
 		title = title[:width-3] + "…"
 	}
 	return StyleHeader.Width(width).Render(title+pending) + "\n" +
 		StyleStatusBar.Render(meta)
+}
+
+func renderCheckLabel(state string) string {
+	switch state {
+	case "SUCCESS":
+		return StyleCheckSuccess.Render("✓ checks passed")
+	case "FAILURE", "ERROR":
+		return StyleCheckFailure.Render("✗ checks failed")
+	case "PENDING", "IN_PROGRESS", "QUEUED":
+		return StyleCheckPending.Render("○ checks running")
+	case "EXPECTED":
+		return StyleCheckNone.Render("— no checks")
+	default:
+		return ""
+	}
 }
 
 func (m DetailModel) renderFooter(width int, statusBar string) string {
