@@ -270,7 +270,7 @@ func renderContextLine(line DiffLine, width int, tokens []Token) string {
 	var sb strings.Builder
 	for _, tok := range tokens {
 		if tok.Color != "" {
-			sb.WriteString(styleContext.Copy().Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
+			sb.WriteString(styleContext.Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
 		} else {
 			sb.WriteString(styleContext.Render(tok.Text))
 		}
@@ -290,7 +290,7 @@ func renderColoredLine(line DiffLine, width int, tokens []Token, base, prefixSty
 	var sb strings.Builder
 	// the first token is the diff prefix (+/-) — render with brighter gutter style
 	firstIdx := 0
-	prefix := string(line.Text[0:1])
+	prefix := line.Text[:1]
 	if prefix == "+" || prefix == "-" {
 		sb.WriteString(prefixStyle.Render(prefix))
 		firstIdx = 0 // tokens already have the prefix stripped — skip rendering it from tokens
@@ -299,7 +299,7 @@ func renderColoredLine(line DiffLine, width int, tokens []Token, base, prefixSty
 
 	for _, tok := range tokens {
 		if tok.Color != "" {
-			sb.WriteString(base.Copy().Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
+			sb.WriteString(base.Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
 		} else {
 			sb.WriteString(base.Render(tok.Text))
 		}

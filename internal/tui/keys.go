@@ -2,6 +2,12 @@ package tui
 
 import "github.com/charmbracelet/bubbles/key"
 
+const (
+	keyEsc    = "esc"
+	keyEnter  = "enter"
+	dotFilled = "●"
+)
+
 type listKeyMap struct {
 	Up       key.Binding
 	Down     key.Binding
@@ -37,7 +43,7 @@ var ListKeys = listKeyMap{
 	Down:     key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("j/↓", "down")),
 	Tab1:     key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "my PRs")),
 	Tab2:     key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "needs review")),
-	Enter:    key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "view")),
+	Enter:    key.NewBinding(key.WithKeys(keyEnter), key.WithHelp("enter", "view")),
 	Approve:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "approve")),
 	Changes:  key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "request changes")),
 	Comment:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
@@ -57,7 +63,7 @@ var DetailKeys = detailKeyMap{
 	Comment:  key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 	Refresh:  key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "refresh")),
 	Web:      key.NewBinding(key.WithKeys("w"), key.WithHelp("w", "open in browser")),
-	Back:     key.NewBinding(key.WithKeys("b", "esc"), key.WithHelp("b/esc", "back")),
+	Back:     key.NewBinding(key.WithKeys("b", keyEsc), key.WithHelp("b/esc", "back")),
 	Help:     key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
 }

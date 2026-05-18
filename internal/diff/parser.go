@@ -6,7 +6,12 @@ import (
 	"strings"
 )
 
-type DiffLineType int
+const (
+	sideRight = "RIGHT"
+	sideLeft  = "LEFT"
+)
+
+type DiffLineType int //nolint:revive
 
 const (
 	DiffContext    DiffLineType = iota
@@ -16,7 +21,7 @@ const (
 	DiffFileHeader              // lines starting with diff --git / --- / +++
 )
 
-type DiffLine struct {
+type DiffLine struct { //nolint:revive
 	Type DiffLineType
 	Text string // includes the +/- prefix character
 	Lang string // detected from diff --git header
@@ -142,9 +147,9 @@ func detectPath(line string) string {
 // "RIGHT" for added/context (new file), "LEFT" for removed (old file).
 func CommentSide(dl DiffLine) string {
 	if dl.Type == DiffRemoved {
-		return "LEFT"
+		return sideLeft
 	}
-	return "RIGHT"
+	return sideRight
 }
 
 // CommentLine returns the file line number to use in a GitHub review comment.

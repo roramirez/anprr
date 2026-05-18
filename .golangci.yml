@@ -1,0 +1,48 @@
+linters:
+  enable:
+    - govet        # reports suspicious constructs
+    - errcheck     # checks for unhandled errors
+    - staticcheck  # advanced static analysis
+    - revive       # style and idiom rules (replaces golint)
+    - gocognit     # cognitive complexity
+    - cyclop       # cyclomatic complexity
+    - goconst      # repeated strings/numbers that should be constants
+    - gocritic     # additional quality checks
+    - gofmt        # standard Go formatting
+    - goimports    # clean and sorted imports
+    - misspell     # typos in comments and strings
+    - unconvert    # unnecessary type conversions
+    - unparam      # parameters that always receive the same value
+
+linters-settings:
+  gocognit:
+    min-complexity: 20
+
+  cyclop:
+    max-complexity: 20
+
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+
+  revive:
+    rules:
+      - name: exported
+      - name: var-naming
+      - name: error-return
+      - name: error-strings
+      - name: blank-imports
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - goconst
+
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+run:
+  go: "1.19"
+  timeout: 5m

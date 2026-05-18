@@ -64,7 +64,7 @@ func (m AppModel) Init() tea.Cmd {
 	)
 }
 
-func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocognit,cyclop
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -188,7 +188,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showHelp = !m.showHelp
 			return m, nil
 		}
-		if m.showHelp && (msg.String() == "esc" || msg.String() == "?") {
+		if m.showHelp && (msg.String() == keyEsc || msg.String() == "?") {
 			m.showHelp = false
 			return m, nil
 		}

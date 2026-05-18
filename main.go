@@ -53,7 +53,10 @@ func main() {
 	flagToken := fs.String("token", "", "GitHub personal access token")
 	flagNoSyntax := fs.Bool("no-syntax", false, "Disable syntax highlighting in diffs")
 	flagDemo := fs.Bool("demo", false, "Run with mock data (no token required)")
-	fs.Parse(os.Args[1:])
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	var (
 		client   *github.Client
@@ -102,7 +105,10 @@ func main() {
 func cmdLogin(args []string) {
 	fs := flag.NewFlagSet("anprr login", flag.ExitOnError)
 	flagToken := fs.String("token", "", "GitHub personal access token")
-	fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	token := *flagToken
 	if token == "" && len(fs.Args()) > 0 {
@@ -127,7 +133,7 @@ func cmdLogin(args []string) {
 	fmt.Println("Token saved.")
 }
 
-func cmdRepos(args []string) {
+func cmdRepos(args []string) { //nolint:gocognit
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: anprr repos list|add|remove <owner/repo>")
 		os.Exit(1)

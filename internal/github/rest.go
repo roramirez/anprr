@@ -56,12 +56,7 @@ func (c *Client) SubmitReview(owner, repo string, number int, event ReviewEvent,
 
 	comments := make([]reviewComment, 0, len(inline))
 	for _, ic := range inline {
-		comments = append(comments, reviewComment{
-			Path: ic.Path,
-			Line: ic.Line,
-			Side: ic.Side,
-			Body: ic.Body,
-		})
+		comments = append(comments, reviewComment(ic))
 	}
 
 	payload := map[string]interface{}{

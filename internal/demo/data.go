@@ -138,7 +138,7 @@ const mockReviewCommentsJSON = `[
 var now = time.Now()
 
 // prNode returns a fake GraphQL PR node JSON.
-func prNode(number int, title, head, base string, additions, deletions int,
+func prNode(number int, title, head, base string, additions, deletions int, //nolint:unparam
 	authorLogin, typename, mergeable string, isDraft bool,
 	reviewStates []string, reviewRequestedLogins []string,
 	updatedAgo time.Duration,
