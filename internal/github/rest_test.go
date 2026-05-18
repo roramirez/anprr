@@ -143,6 +143,30 @@ func TestPostComment(t *testing.T) {
 	}
 }
 
+func TestHTTP403_returnsErrForbidden(t *testing.T) {
+	c, _ := newTestClient(403, `{"message":"Forbidden"}`)
+	_, err := c.GetCurrentUser()
+	if err != ErrForbidden {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestHTTP422_returnsErrUnprocessable(t *testing.T) {
+	c, _ := newTestClient(422, `{"message":"Unprocessable"}`)
+	err := c.SubmitReview("o", "r", 1, ReviewApprove, "", nil)
+	if err != ErrUnprocessable {
+		t.Errorf("got %v", err)
+	}
+}
+
+func TestHTTP500_returnsErrServerError(t *testing.T) {
+	c, _ := newTestClient(500, `{"message":"Internal Server Error"}`)
+	_, err := c.GetCurrentUser()
+	if err != ErrServerError {
+		t.Errorf("got %v", err)
+	}
+}
+
 func TestHTTP401_returnsErrUnauthorized(t *testing.T) {
 	c, _ := newTestClient(401, `{"message":"Bad credentials"}`)
 	_, err := c.GetCurrentUser()

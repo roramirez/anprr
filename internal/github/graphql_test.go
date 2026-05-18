@@ -229,6 +229,61 @@ func TestConvertPR_checkState(t *testing.T) {
 	}
 }
 
+func TestConvertPR_botAuthor(t *testing.T) {
+	node := gqlPR{
+		Number: 3, Title: "bump deps", Mergeable: "MERGEABLE",
+		Author: struct {
+			Login    string `json:"login"`
+			Typename string `json:"__typename"`
+		}{Login: "dependabot[bot]", Typename: "Bot"},
+	}
+	pr := convertPR(node, "org/repo")
+	if !pr.Author.IsBot {
+		t.Error("expected IsBot=true for bot author")
+	}
+}
+
+func TestConvertPR_bodyField(t *testing.T) {
+	node := gqlPR{
+		Number: 4, Title: "feat", Mergeable: "MERGEABLE",
+		Body: "## My PR body",
+		Author: struct {
+			Login    string `json:"login"`
+			Typename string `json:"__typename"`
+		}{Login: "alice", Typename: "User"},
+	}
+	pr := convertPR(node, "org/repo")
+	if pr.Body != "## My PR body" {
+		t.Errorf("body: got %q", pr.Body)
+	}
+}
+
+func TestConvertPR_dismissedReviewIgnored(t *testing.T) {
+	node := gqlPR{
+		Number: 5, Title: "t", Mergeable: "MERGEABLE",
+		Author: struct {
+			Login    string `json:"login"`
+			Typename string `json:"__typename"`
+		}{Login: "alice", Typename: "User"},
+	}
+	node.Reviews.Nodes = []struct {
+		Author struct {
+			Login string `json:"login"`
+		} `json:"author"`
+		State       string `json:"state"`
+		SubmittedAt string `json:"submittedAt"`
+	}{
+		{Author: struct {
+			Login string `json:"login"`
+		}{Login: "bob"}, State: "DISMISSED", SubmittedAt: "2026-01-01T00:00:00Z"},
+	}
+	pr := convertPR(node, "org/repo")
+	// DISMISSED review should not count — status stays pending
+	if pr.ReviewStatus != StatusPending {
+		t.Errorf("expected pending, got %s", pr.ReviewStatus)
+	}
+}
+
 func TestDerivePRStatus_pending(t *testing.T) {
 	pr := PR{Mergeable: "MERGEABLE"}
 	if got := DerivePRStatus(pr); got != StatusPending {
