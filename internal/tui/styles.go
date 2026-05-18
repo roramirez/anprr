@@ -101,6 +101,12 @@ var (
 	StyleHelpDesc = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#AAAAAA"))
 
+	// CI check status icons
+	StyleCheckSuccess = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF7F"))
+	StyleCheckFailure = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4444"))
+	StyleCheckPending = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFBF00"))
+	StyleCheckNone    = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
+
 	// Too small message
 	StyleTooSmall = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF4444")).

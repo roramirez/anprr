@@ -80,6 +80,7 @@ func buildListPRsQuery(repos []string, afterCursor string) (string, map[string]s
         author { login __typename }
         reviewRequests(first: 10) { nodes { requestedReviewer { ... on User { login } } } }
         reviews(last: 10) { nodes { author { login } state submittedAt } }
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
       pageInfo { hasNextPage endCursor }
     }
@@ -122,6 +123,15 @@ type gqlPR struct {
 			SubmittedAt string `json:"submittedAt"`
 		} `json:"nodes"`
 	} `json:"reviews"`
+	Commits struct {
+		Nodes []struct {
+			Commit struct {
+				StatusCheckRollup *struct {
+					State string `json:"state"`
+				} `json:"statusCheckRollup"`
+			} `json:"commit"`
+		} `json:"nodes"`
+	} `json:"commits"`
 }
 
 type gqlPageInfo struct {
@@ -180,6 +190,13 @@ func convertPR(node gqlPR, repo string) PR {
 	createdAt, _ := time.Parse(time.RFC3339, node.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, node.UpdatedAt)
 
+	checkState := ""
+	if len(node.Commits.Nodes) > 0 {
+		if r := node.Commits.Nodes[0].Commit.StatusCheckRollup; r != nil {
+			checkState = r.State
+		}
+	}
+
 	pr := PR{
 		Number:             node.Number,
 		Title:              node.Title,
@@ -196,6 +213,7 @@ func convertPR(node gqlPR, repo string) PR {
 		Repo:               repo,
 		Reviews:            reviews,
 		RequestedReviewers: requestedReviewers,
+		CheckState:         checkState,
 	}
 	pr.ReviewStatus = DerivePRStatus(pr)
 	return pr

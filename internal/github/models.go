@@ -47,6 +47,10 @@ type PR struct {
 	Reviews            []Review
 	RequestedReviewers []User
 	ReviewStatus       PRStatus
+	// CheckState is the aggregate CI status from statusCheckRollup.
+	// Values: "SUCCESS", "FAILURE", "PENDING", "ERROR", "EXPECTED", "" (no checks configured)
+	CheckState string
+
 	// Pagination cursor from the repo this PR belongs to (used for load-more)
 	HasNextPage bool
 	EndCursor   string

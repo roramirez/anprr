@@ -122,6 +122,7 @@ func prNode(number int, title, head, base string, additions, deletions int,
 	authorLogin, typename, mergeable string, isDraft bool,
 	reviewStates []string, reviewRequestedLogins []string,
 	updatedAgo time.Duration,
+	checkState string,
 ) map[string]interface{} {
 	reviews := make([]map[string]interface{}, 0, len(reviewStates))
 	for i, state := range reviewStates {
@@ -141,6 +142,20 @@ func prNode(number int, title, head, base string, additions, deletions int,
 			"requestedReviewer": map[string]interface{}{"login": login},
 		})
 	}
+
+	var commitsNode interface{}
+	if checkState != "" {
+		commitsNode = map[string]interface{}{
+			"nodes": []map[string]interface{}{
+				{"commit": map[string]interface{}{
+					"statusCheckRollup": map[string]interface{}{"state": checkState},
+				}},
+			},
+		}
+	} else {
+		commitsNode = map[string]interface{}{"nodes": []interface{}{}}
+	}
+
 	return map[string]interface{}{
 		"number":      number,
 		"title":       title,
@@ -158,6 +173,7 @@ func prNode(number int, title, head, base string, additions, deletions int,
 		"reviewRequests": map[string]interface{}{
 			"nodes": rrs,
 		},
+		"commits": commitsNode,
 	}
 }
 
@@ -167,34 +183,34 @@ func GraphQLResponse() map[string]interface{} {
 		// [1] My PRs
 		prNode(42, "feat: add token expiry and scope validation", "feat/token-expiry", "main",
 			45, 12, MockUser, "User", "MERGEABLE", false,
-			[]string{"APPROVED"}, nil, 2*time.Hour),
+			[]string{"APPROVED"}, nil, 2*time.Hour, "SUCCESS"),
 		prNode(38, "fix: handle nil pointer in cache eviction", "fix/cache-nil", "main",
 			8, 3, MockUser, "User", "MERGEABLE", false,
-			[]string{"CHANGES_REQUESTED"}, nil, 5*time.Hour),
+			[]string{"CHANGES_REQUESTED"}, nil, 5*time.Hour, "FAILURE"),
 		prNode(35, "wip: new dashboard layout", "wip/dashboard", "main",
 			120, 0, MockUser, "User", "MERGEABLE", true,
-			nil, nil, 1*time.Hour),
+			nil, nil, 1*time.Hour, "PENDING"),
 
 		// [2] Needs Review (human — reviewer requested)
 		prNode(41, "refactor: split middleware into separate packages", "refactor/middleware", "main",
 			230, 180, "alice", "User", "MERGEABLE", false,
-			nil, []string{MockUser}, 30*time.Minute),
+			nil, []string{MockUser}, 30*time.Minute, "SUCCESS"),
 
 		// [2] Needs Review (bot — Dependabot, pending)
 		prNode(40, "chore(deps): bump golang.org/x/net from 0.17 to 0.23", "deps/bump-net", "main",
 			3, 3, "dependabot[bot]", "Bot", "MERGEABLE", false,
-			nil, nil, 3*time.Hour),
+			nil, nil, 3*time.Hour, "SUCCESS"),
 		prNode(39, "chore(deps): bump github.com/BurntSushi/toml from 1.3.2 to 1.4.0", "deps/bump-toml", "main",
 			2, 2, "app/dependabot", "Bot", "MERGEABLE", false,
-			nil, nil, 6*time.Hour),
+			nil, nil, 6*time.Hour, "PENDING"),
 
 		// [3] All Open (others)
 		prNode(37, "docs: update API reference with new endpoints", "docs/api-ref", "main",
 			95, 12, "carol", "User", "MERGEABLE", false,
-			nil, nil, 4*time.Hour),
+			nil, nil, 4*time.Hour, ""),
 		prNode(36, "test: increase coverage for auth package", "test/auth-coverage", "main",
 			180, 10, "bob", "User", "CONFLICTING", false,
-			nil, nil, 8*time.Hour),
+			nil, nil, 8*time.Hour, "FAILURE"),
 	}
 
 	repoData := map[string]interface{}{

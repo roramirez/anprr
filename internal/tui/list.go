@@ -388,9 +388,10 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 	numberStr := fmt.Sprintf("#%-4d", pr.Number)
 	repoStr := pr.Repo
 	ageStr := age
+	checkIcon := renderCheckIcon(pr.CheckState)
 
-	// calculate title width
-	fixedW := 2 + len(numberStr) + 2 + len(repoStr) + 2 + len(ageStr) + 2 + 2
+	// fixed chars: cursor(2) + sep(2) + sep(2) + repo + sep(2) + age + sep(2) + dot(1) + sep(2) + icon(1)
+	fixedW := 2 + len(numberStr) + 2 + 2 + len(repoStr) + 2 + len(ageStr) + 2 + 1 + 2 + 1
 	titleW := width - fixedW
 	if titleW < 10 {
 		titleW = 10
@@ -406,7 +407,8 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 		titleStyle.Render(title) + "  " +
 		StylePRRepo.Render(repoStr) + "  " +
 		StylePRAge.Render(ageStr) + "  " +
-		dotStyle.Render(dot)
+		dotStyle.Render(dot) + "  " +
+		checkIcon
 }
 
 func (m ListModel) renderFooter(width int, statusBar string) string {
@@ -417,6 +419,19 @@ func (m ListModel) renderFooter(width int, statusBar string) string {
 	}
 	_ = width
 	return keys + sb
+}
+
+func renderCheckIcon(state string) string {
+	switch state {
+	case "SUCCESS":
+		return StyleCheckSuccess.Render("✓")
+	case "FAILURE", "ERROR":
+		return StyleCheckFailure.Render("✗")
+	case "PENDING", "IN_PROGRESS", "QUEUED":
+		return StyleCheckPending.Render("○")
+	default:
+		return StyleCheckNone.Render("—")
+	}
 }
 
 func statusDot(pr github.PR) (string, lipgloss.Style) {

@@ -133,6 +133,48 @@ func TestDerivePRStatus_latestWins(t *testing.T) {
 	}
 }
 
+func TestConvertPR_checkState(t *testing.T) {
+	withCheck := gqlPR{
+		Number: 1, Title: "t", Mergeable: "MERGEABLE",
+		Author: struct {
+			Login    string `json:"login"`
+			Typename string `json:"__typename"`
+		}{Login: "alice", Typename: "User"},
+	}
+	withCheck.Commits.Nodes = []struct {
+		Commit struct {
+			StatusCheckRollup *struct {
+				State string `json:"state"`
+			} `json:"statusCheckRollup"`
+		} `json:"commit"`
+	}{
+		{Commit: struct {
+			StatusCheckRollup *struct {
+				State string `json:"state"`
+			} `json:"statusCheckRollup"`
+		}{StatusCheckRollup: &struct {
+			State string `json:"state"`
+		}{State: "SUCCESS"}}},
+	}
+	pr := convertPR(withCheck, "org/repo")
+	if pr.CheckState != "SUCCESS" {
+		t.Errorf("expected SUCCESS, got %q", pr.CheckState)
+	}
+
+	// no commits → empty CheckState
+	empty := gqlPR{
+		Number: 2, Title: "t", Mergeable: "MERGEABLE",
+		Author: struct {
+			Login    string `json:"login"`
+			Typename string `json:"__typename"`
+		}{Login: "bob", Typename: "User"},
+	}
+	pr2 := convertPR(empty, "org/repo")
+	if pr2.CheckState != "" {
+		t.Errorf("expected empty CheckState, got %q", pr2.CheckState)
+	}
+}
+
 func TestDerivePRStatus_pending(t *testing.T) {
 	pr := PR{Mergeable: "MERGEABLE"}
 	if got := DerivePRStatus(pr); got != StatusPending {
