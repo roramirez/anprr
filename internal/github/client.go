@@ -48,6 +48,27 @@ func (c *Client) RateLimitReset() int64 {
 }
 
 func (c *Client) do(method, url string, body interface{}, acceptHeader string) ([]byte, error) {
+	req, err := c.buildRequest(method, url, body, acceptHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	c.updateRateLimit(resp)
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return data, checkStatus(resp.StatusCode, data)
+}
+
+func (c *Client) buildRequest(method, url string, body interface{}, acceptHeader string) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -66,19 +87,15 @@ func (c *Client) do(method, url string, body interface{}, acceptHeader string) (
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	accept := "application/vnd.github.v3+json"
 	if acceptHeader != "" {
-		req.Header.Set("Accept", acceptHeader)
-	} else {
-		req.Header.Set("Accept", "application/vnd.github.v3+json")
+		accept = acceptHeader
 	}
+	req.Header.Set("Accept", accept)
+	return req, nil
+}
 
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	// update rate limit counters
+func (c *Client) updateRateLimit(resp *http.Response) {
 	if v := resp.Header.Get("X-RateLimit-Remaining"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			c.rateLimit.Store(n)
@@ -89,28 +106,25 @@ func (c *Client) do(method, url string, body interface{}, acceptHeader string) (
 			c.rateReset.Store(n)
 		}
 	}
+}
 
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	switch resp.StatusCode {
-	case http.StatusOK, http.StatusCreated:
-		return data, nil
+func checkStatus(code int, data []byte) error {
+	switch code {
+	case http.StatusOK, http.StatusCreated, http.StatusNoContent:
+		return nil
 	case http.StatusUnauthorized:
-		return nil, ErrUnauthorized
+		return ErrUnauthorized
 	case http.StatusForbidden:
-		return nil, ErrForbidden
+		return ErrForbidden
 	case http.StatusNotFound:
-		return nil, ErrNotFound
+		return ErrNotFound
 	case http.StatusUnprocessableEntity:
-		return nil, ErrUnprocessable
+		return ErrUnprocessable
 	default:
-		if resp.StatusCode >= 500 {
-			return nil, ErrServerError
+		if code >= 500 {
+			return ErrServerError
 		}
-		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(data))
+		return fmt.Errorf("HTTP %d: %s", code, string(data))
 	}
 }
 
