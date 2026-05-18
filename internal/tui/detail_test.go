@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -213,6 +214,109 @@ func TestDetailModel_tab3ViewportHasCommentAuthors(t *testing.T) {
 	}
 	if !strings.Contains(content, "reviewer2") {
 		t.Errorf("expected reviewer2 in comments viewport")
+	}
+}
+
+// handleApproveConfirm tests
+
+func TestDetailModel_approveConfirm_yes(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateApproveConfirm
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("y")}, nil, nil)
+	if m.state != detailStateSubmitting {
+		t.Errorf("expected submitting after y, got %d", m.state)
+	}
+}
+
+func TestDetailModel_approveConfirm_esc(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateApproveConfirm
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyEsc}, nil, nil)
+	if m.state != detailStateReady {
+		t.Errorf("expected ready after esc, got %d", m.state)
+	}
+}
+
+func TestDetailModel_approveConfirm_withComment(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateApproveConfirm
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")}, nil, nil)
+	if m.state != detailStateCommentInput {
+		t.Errorf("expected comment input after c, got %d", m.state)
+	}
+	if m.pending != actionApprove {
+		t.Errorf("expected actionApprove, got %d", m.pending)
+	}
+}
+
+// resetToReady
+
+func TestDetailModel_resetToReady(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateSubmitting
+	m.pending = actionComment
+	m.input.SetValue("some text")
+	m = m.resetToReady()
+	if m.state != detailStateReady {
+		t.Error("expected ready state")
+	}
+	if m.pending != actionNone {
+		t.Error("expected actionNone")
+	}
+	if m.input.Value() != "" {
+		t.Error("expected input cleared")
+	}
+}
+
+// renderCheckLabel
+
+func TestRenderCheckLabel(t *testing.T) {
+	cases := []struct {
+		state string
+		want  string
+	}{
+		{"SUCCESS", "checks passed"},
+		{"FAILURE", "checks failed"},
+		{"ERROR", "checks failed"},
+		{"PENDING", "checks running"},
+		{"IN_PROGRESS", "checks running"},
+		{"EXPECTED", "no checks"},
+		{"", ""},
+	}
+	for _, c := range cases {
+		got := renderCheckLabel(c.state)
+		if c.want == "" && got != "" {
+			t.Errorf("renderCheckLabel(%q) = %q, want empty", c.state, got)
+		} else if c.want != "" && !strings.Contains(got, c.want) {
+			t.Errorf("renderCheckLabel(%q) = %q, want to contain %q", c.state, got, c.want)
+		}
+	}
+}
+
+// handleCommentInput approve path
+
+func TestDetailModel_commentInput_approve_submits(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateCommentInput
+	m.pending = actionApprove
+	m.input.SetValue("looks great!")
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyCtrlD}, nil, nil)
+	if m.state != detailStateSubmitting {
+		t.Errorf("expected submitting after ctrl+d approve, got %d", m.state)
+	}
+}
+
+// updateDetailDiff error path
+
+func TestUpdateDetailDiff_error(t *testing.T) {
+	m := newDetailModel()
+	m = m.setSize(120, 40)
+	m, cmd := updateDetailDiff(m, DiffLoadedMsg{Err: fmt.Errorf("not found")}, false)
+	if m.state != detailStateReady {
+		t.Error("expected ready state on diff error")
+	}
+	if cmd == nil {
+		t.Error("expected error status cmd")
 	}
 }
 
