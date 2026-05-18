@@ -64,140 +64,140 @@ func (m AppModel) Init() tea.Cmd {
 	)
 }
 
-func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) { //nolint:gocognit,cyclop
+func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.tooSmall = msg.Width < minWidth || msg.Height < minHeight
-		if !m.tooSmall {
-			m.list = m.list.setSize(msg.Width, msg.Height)
-			m.detail = m.detail.setSize(msg.Width, msg.Height)
-		}
-		return m, nil
-
+		return m.handleWindowSize(msg)
 	case CurrentUserMsg:
-		if msg.Err != nil {
-			return m, statusCmd("Auth error: "+msg.Err.Error(), true)
-		}
-		m.currentUser = msg.Login
-		m.list = m.list.setCurrentUser(msg.Login)
-		return m, nil
-
+		return m.handleCurrentUser(msg)
 	case PRsLoadedMsg:
-		var cmds []tea.Cmd
-		m.list, cmds = updateListModel(m.list, msg)
-		// check rate limit
-		if rl := m.client.RateLimitRemaining(); rl >= 0 && rl < 100 {
-			cmds = append(cmds, statusCmd(fmt.Sprintf("⚠ %d API requests remaining", rl), false))
-		}
-		return m, tea.Batch(cmds...)
-
+		return m.handlePRsLoaded(msg)
 	case MorePRsLoadedMsg:
 		var cmds []tea.Cmd
 		m.list, cmds = updateListModelMore(m.list, msg)
 		return m, tea.Batch(cmds...)
-
 	case NavigateToDetailMsg:
-		m.active = screenDetail
-		m.detail = newDetailModel()
-		m.detail = m.detail.setSize(m.width, m.height)
-		m.detail = m.detail.setPR(msg.PR, msg.FocusComment)
-		return m, tea.Batch(
-			fetchDiffCmd(m.client, m.cache, msg.PR),
-			fetchCommentsCmd(m.client, msg.PR),
-		)
-
+		return m.handleNavigateToDetail(msg)
 	case NavigateToListMsg:
 		m.active = screenList
 		return m, nil
-
 	case DiffLoadedMsg:
 		var cmd tea.Cmd
 		m.detail, cmd = updateDetailDiff(m.detail, msg, m.syntaxHL)
 		return m, cmd
-
 	case CommentsLoadedMsg:
 		var cmd tea.Cmd
 		m.detail, cmd = m.detail.update(msg, m.client, m.cache)
 		return m, cmd
-
 	case MergeDoneMsg:
-		m.cache.Invalidate()
-		if msg.Err != nil {
-			m.detail = m.detail.resetToReady()
-			return m, statusCmd("Merge failed: "+msg.Err.Error(), true)
-		}
-		m.active = screenList
-		return m, tea.Batch(
-			statusCmd("✓ PR merged", false),
-			fetchPRsCmd(m.client, m.cache, m.repos),
-		)
-
+		return m.handleMergeDone(msg)
 	case ReviewDoneMsg:
-		m.cache.Invalidate()
-		if msg.Err != nil {
-			m.detail = m.detail.resetToReady()
-			return m, tea.Batch(statusCmd(msg.Err.Error(), true), fetchPRsCmd(m.client, m.cache, m.repos))
-		}
-		return m, tea.Batch(statusCmd("✓ Review submitted", false), fetchPRsCmd(m.client, m.cache, m.repos))
-
+		return m.handleReviewDone(msg)
 	case CommentDoneMsg:
-		if msg.Err != nil {
-			m.detail = m.detail.resetToReady()
-			return m, statusCmd(msg.Err.Error(), true)
-		}
-		return m, statusCmd("✓ Comment posted", false)
-
+		return m.handleCommentDone(msg)
 	case StatusMsg:
-		m.statusText = msg.Text
-		m.statusIsError = msg.IsError
-		m.statusIsOK = msg.IsOK
+		m.statusText, m.statusIsError, m.statusIsOK = msg.Text, msg.IsError, msg.IsOK
 		return m, clearStatusCmd(3 * time.Second)
-
 	case ClearStatusMsg:
-		m.statusText = ""
-		m.statusIsError = false
-		m.statusIsOK = false
+		m.statusText, m.statusIsError, m.statusIsOK = "", false, false
 		return m, nil
-
 	case ReviewRequestedLoadedMsg:
 		if msg.Err == nil {
 			m.list = m.list.setReviewRequestedSet(msg.Set)
 		}
 		return m, nil
-
 	case TickMsg:
 		m.cache.Invalidate()
-		return m, tea.Batch(
-			fetchPRsCmd(m.client, m.cache, m.repos),
-			searchReviewRequestedCmd(m.client, m.cache, m.repos),
-			tickCmd(),
-		)
-
+		return m, tea.Batch(fetchPRsCmd(m.client, m.cache, m.repos), searchReviewRequestedCmd(m.client, m.cache, m.repos), tickCmd())
 	case ToggleHelpMsg:
 		m.showHelp = !m.showHelp
 		return m, nil
-
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" {
-			return m, tea.Quit
-		}
-		if msg.String() == "?" {
-			m.showHelp = !m.showHelp
-			return m, nil
-		}
-		if m.showHelp && (msg.String() == keyEsc || msg.String() == "?") {
-			m.showHelp = false
-			return m, nil
-		}
-		if m.showHelp {
-			return m, nil
-		}
+		return m.handleGlobalKey(msg)
 	}
+	return m.delegateToScreen(msg)
+}
 
-	// delegate to active screen
+func (m AppModel) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.width, m.height = msg.Width, msg.Height
+	m.tooSmall = msg.Width < minWidth || msg.Height < minHeight
+	if !m.tooSmall {
+		m.list = m.list.setSize(msg.Width, msg.Height)
+		m.detail = m.detail.setSize(msg.Width, msg.Height)
+	}
+	return m, nil
+}
+
+func (m AppModel) handleCurrentUser(msg CurrentUserMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		return m, statusCmd("Auth error: "+msg.Err.Error(), true)
+	}
+	m.currentUser = msg.Login
+	m.list = m.list.setCurrentUser(msg.Login)
+	return m, nil
+}
+
+func (m AppModel) handlePRsLoaded(msg PRsLoadedMsg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+	m.list, cmds = updateListModel(m.list, msg)
+	if rl := m.client.RateLimitRemaining(); rl >= 0 && rl < 100 {
+		cmds = append(cmds, statusCmd(fmt.Sprintf("⚠ %d API requests remaining", rl), false))
+	}
+	return m, tea.Batch(cmds...)
+}
+
+func (m AppModel) handleNavigateToDetail(msg NavigateToDetailMsg) (tea.Model, tea.Cmd) {
+	m.active = screenDetail
+	m.detail = newDetailModel().setSize(m.width, m.height).setPR(msg.PR, msg.FocusComment)
+	return m, tea.Batch(fetchDiffCmd(m.client, m.cache, msg.PR), fetchCommentsCmd(m.client, msg.PR))
+}
+
+func (m AppModel) handleMergeDone(msg MergeDoneMsg) (tea.Model, tea.Cmd) {
+	m.cache.Invalidate()
+	if msg.Err != nil {
+		m.detail = m.detail.resetToReady()
+		return m, statusCmd("Merge failed: "+msg.Err.Error(), true)
+	}
+	m.active = screenList
+	return m, tea.Batch(statusCmd("✓ PR merged", false), fetchPRsCmd(m.client, m.cache, m.repos))
+}
+
+func (m AppModel) handleReviewDone(msg ReviewDoneMsg) (tea.Model, tea.Cmd) {
+	m.cache.Invalidate()
+	refresh := fetchPRsCmd(m.client, m.cache, m.repos)
+	if msg.Err != nil {
+		m.detail = m.detail.resetToReady()
+		return m, tea.Batch(statusCmd(msg.Err.Error(), true), refresh)
+	}
+	return m, tea.Batch(statusCmd("✓ Review submitted", false), refresh)
+}
+
+func (m AppModel) handleCommentDone(msg CommentDoneMsg) (tea.Model, tea.Cmd) {
+	if msg.Err != nil {
+		m.detail = m.detail.resetToReady()
+		return m, statusCmd(msg.Err.Error(), true)
+	}
+	return m, statusCmd("✓ Comment posted", false)
+}
+
+func (m AppModel) handleGlobalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+c" {
+		return m, tea.Quit
+	}
+	if m.showHelp {
+		if msg.String() == keyEsc || msg.String() == "?" {
+			m.showHelp = false
+		}
+		return m, nil
+	}
+	if msg.String() == "?" {
+		m.showHelp = true
+		return m, nil
+	}
+	return m.delegateToScreen(msg)
+}
+
+func (m AppModel) delegateToScreen(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.active {
 	case screenList:
