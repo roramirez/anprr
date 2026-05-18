@@ -16,14 +16,21 @@ import (
 const usage = `anprr — GitHub PR review TUI
 
 Usage:
-  anprr [--token <token>] [--syntax]   Launch TUI
+  anprr [flags]                        Launch TUI
   anprr login --token <token>          Save token to config
   anprr repos list                     List tracked repos
   anprr repos add <owner/repo>         Add a repo
   anprr repos remove <owner/repo>      Remove a repo
   anprr help                           Show this help
 
+Flags:
+  --token <token>    GitHub personal access token (overrides config and GITHUB_TOKEN)
+  --no-syntax        Disable syntax highlighting in diffs (enabled by default)
+
 Config file: ~/.config/anprr/config.toml
+  token     = "ghp_xxxx"
+  repos     = ["owner/repo"]
+  no-syntax = false   # set to true to disable syntax highlighting
 `
 
 func main() {
@@ -44,7 +51,7 @@ func main() {
 	// launch TUI
 	fs := flag.NewFlagSet("anprr", flag.ExitOnError)
 	flagToken := fs.String("token", "", "GitHub personal access token")
-	flagSyntax := fs.Bool("syntax", false, "Enable syntax highlighting in diffs")
+	flagNoSyntax := fs.Bool("no-syntax", false, "Disable syntax highlighting in diffs")
 	flagDemo := fs.Bool("demo", false, "Run with mock data (no token required)")
 	fs.Parse(os.Args[1:])
 
@@ -79,7 +86,8 @@ func main() {
 		client = github.NewClient(token, nil)
 		cache = github.NewCache()
 		repos = cfg.Repos
-		syntaxHL = cfg.Syntax || *flagSyntax
+		// syntax highlighting is ON by default; --no-syntax or config no-syntax = true disables it
+		syntaxHL = !cfg.NoSyntax && !*flagNoSyntax
 	}
 
 	app := tui.NewApp(client, cache, repos, syntaxHL)
