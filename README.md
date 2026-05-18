@@ -27,7 +27,7 @@ A terminal UI for reviewing GitHub pull requests — without leaving the termina
 
 - **3 tabs** — My PRs / Needs Review / All Open
 - **Precise "Needs Review"** — uses GitHub Search API (`review-requested:@me`) + re-review detection (new commits after your last review). Bot PRs (Dependabot, Renovate) appear when still pending.
-- **Colored unified and split diff** (`s` to toggle) with optional syntax highlighting per language
+- **Colored unified and split diff** (`s` to toggle) with syntax highlighting per language (on by default, disable with `--no-syntax`)
 - **Inline review comments** — navigate lines with `n`, add comments per line, send all together with the review
 - **Approve confirmation** — `a` shows a prompt: approve now or add a comment first
 - **Merge from TUI** — `m` selects squash / merge commit / rebase without leaving the terminal
@@ -72,7 +72,7 @@ Token priority: `--token` flag > `GITHUB_TOKEN` env > `~/.config/anprr/config.to
 ```toml
 token  = "ghp_xxxx"
 repos  = ["myorg/backend", "myorg/frontend"]
-syntax = false   # opt-in syntax highlighting (uses chroma)
+no-syntax = false   # set to true to disable syntax highlighting
 ```
 
 ## Key bindings

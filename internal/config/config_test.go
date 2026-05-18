@@ -21,7 +21,7 @@ func TestLoad_valid(t *testing.T) {
 	path := filepath.Join(dir, "config.toml")
 	content := `token = "ghp_test"
 repos = ["owner/repo1", "owner/repo2"]
-syntax = true
+no-syntax = true
 `
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
@@ -36,15 +36,15 @@ syntax = true
 	if len(cfg.Repos) != 2 || cfg.Repos[0] != "owner/repo1" {
 		t.Errorf("repos: got %v", cfg.Repos)
 	}
-	if !cfg.Syntax {
-		t.Error("expected syntax=true")
+	if !cfg.NoSyntax {
+		t.Error("expected no-syntax=true")
 	}
 }
 
 func TestSave_roundtrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "sub", "config.toml")
-	orig := &Config{Token: "tok", Repos: []string{"a/b"}, Syntax: false}
+	orig := &Config{Token: "tok", Repos: []string{"a/b"}, NoSyntax: false}
 	if err := Save(path, orig); err != nil {
 		t.Fatalf("save: %v", err)
 	}

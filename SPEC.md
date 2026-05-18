@@ -55,7 +55,7 @@ Location: `$XDG_CONFIG_HOME/anprr/config.toml` if `XDG_CONFIG_HOME` is set, othe
 ```toml
 token  = "ghp_xxxx"
 repos  = ["myorg/backend", "myorg/frontend"]
-syntax = false   # opt-in syntax highlighting
+no-syntax = false   # set to true to disable syntax highlighting (on by default)
 ```
 
 All fields are optional — missing fields use zero values. The file and its parent directory are created on first `anprr login` call.
@@ -314,8 +314,7 @@ All errors are surfaced in the TUI status bar, not as panics or os.Exit.
 
 ## 9. Syntax highlighting
 
-- Controlled by `syntax = true` in config or `--syntax` flag.
-- Default: off (`NoopHighlighter`).
-- When on: `ChromaHighlighter` detects language from the `diff --git a/path/file.ext` file header line preceding the current hunk.
+- **On by default.** Disable with `--no-syntax` flag or `no-syntax = true` in config.
+- Uses `ChromaHighlighter` which detects language from the `diff --git a/path/file.ext` file header.
 - Unknown or unsupported extensions: falls back to `NoopHighlighter` silently.
 - Syntax colors (foreground) are layered on top of diff background colors (add/remove) — they do not replace them.
