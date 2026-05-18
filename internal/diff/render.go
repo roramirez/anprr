@@ -21,19 +21,28 @@ type Token struct {
 	Color string // hex e.g. "#FF6B6B", empty = use default
 }
 
-// Highlighter tokenizes a source line into colored segments.
+// Highlighter tokenizes source lines into colored segments.
+// TokenizeFile receives all lines of a single file at once (stripped of +/-/space diff prefixes),
+// enabling multi-line constructs (raw strings, block comments) to be recognized correctly.
+// It returns one []Token per input line: len(result) == len(lines).
 type Highlighter interface {
-	Tokenize(lang, line string) []Token
+	TokenizeFile(path, lang string, lines []string) [][]Token
 }
 
-// NoopHighlighter returns the whole line as a single token with no color.
+// NoopHighlighter returns each line as a single token with no color.
 type NoopHighlighter struct{}
 
-func (NoopHighlighter) Tokenize(_, line string) []Token {
-	return []Token{{Text: line}}
+func (NoopHighlighter) TokenizeFile(_, _ string, lines []string) [][]Token {
+	result := make([][]Token, len(lines))
+	for i, line := range lines {
+		result[i] = []Token{{Text: line}}
+	}
+	return result
 }
 
 // ChromaHighlighter uses chroma for per-language syntax highlighting.
+// It tokenizes all lines of a file as a single string so multi-line constructs
+// (raw string literals, block comments, heredocs) are colored correctly.
 type ChromaHighlighter struct {
 	style *chroma.Style
 }
@@ -42,38 +51,73 @@ func NewChromaHighlighter() *ChromaHighlighter {
 	return &ChromaHighlighter{style: styles.Get("monokai")}
 }
 
-func (h *ChromaHighlighter) Tokenize(lang, line string) []Token {
+func (h *ChromaHighlighter) TokenizeFile(path, lang string, lines []string) [][]Token {
 	lexer := lexers.Get(lang)
+	if lexer == nil {
+		// try matching by filename
+		lexer = lexers.Match(path)
+	}
 	if lexer == nil {
 		lexer = lexers.Fallback
 	}
 	lexer = chroma.Coalesce(lexer)
 
-	// strip leading +/- from the line for tokenization, restore after
-	prefix := ""
-	src := line
-	if len(line) > 0 && (line[0] == '+' || line[0] == '-' || line[0] == ' ') {
-		prefix = string(line[0])
-		src = line[1:]
-	}
-
-	iter, err := lexer.Tokenise(nil, src)
+	// join all lines into a single string for full-file tokenization
+	full := strings.Join(lines, "\n")
+	iter, err := lexer.Tokenise(nil, full)
 	if err != nil {
-		return []Token{{Text: line}}
+		// fallback: return each line as-is
+		result := make([][]Token, len(lines))
+		for i, l := range lines {
+			result[i] = []Token{{Text: l}}
+		}
+		return result
 	}
 
-	var result []Token
-	if prefix != "" {
-		result = append(result, Token{Text: prefix})
-	}
-	for _, t := range iter.Tokens() {
-		color := ""
-		if entry := h.style.Get(t.Type); entry.Colour.IsSet() {
-			color = entry.Colour.String() // already includes leading #
+	colorFor := func(t chroma.TokenType) string {
+		if entry := h.style.Get(t); entry.Colour.IsSet() {
+			return entry.Colour.String()
 		}
-		result = append(result, Token{Text: t.Value, Color: color})
+		return ""
 	}
-	return result
+
+	return splitTokensByLine(iter.Tokens(), colorFor, len(lines))
+}
+
+// splitTokensByLine distributes flat chroma tokens back into per-line slices.
+// Tokens whose text contains newlines are split at each newline boundary.
+func splitTokensByLine(rawTokens []chroma.Token, colorFor func(chroma.TokenType) string, numLines int) [][]Token {
+	result := make([][]Token, 0, numLines)
+	var current []Token
+
+	for _, t := range rawTokens {
+		color := colorFor(t.Type)
+		text := t.Value
+		for {
+			nl := strings.Index(text, "\n")
+			if nl < 0 {
+				if text != "" {
+					current = append(current, Token{Text: text, Color: color})
+				}
+				break
+			}
+			if nl > 0 {
+				current = append(current, Token{Text: text[:nl], Color: color})
+			}
+			result = append(result, current)
+			current = nil
+			text = text[nl+1:]
+		}
+	}
+	// flush last line (may not end with \n)
+	if len(current) > 0 {
+		result = append(result, current)
+	}
+	// ensure we always return exactly numLines slices
+	for len(result) < numLines {
+		result = append(result, []Token{})
+	}
+	return result[:numLines]
 }
 
 // lipgloss styles for each diff line type
@@ -113,6 +157,61 @@ var (
 				Bold(true)
 )
 
+// preTokenize groups diff lines by file path and calls TokenizeFile once per file,
+// returning a map of line-index → pre-computed tokens.
+func preTokenize(lines []DiffLine, hl Highlighter) map[int][]Token {
+	// group line indices by path (preserving order)
+	type group struct {
+		path string
+		lang string
+		idxs []int
+	}
+	seen := map[string]int{} // path → group index
+	var groups []group
+
+	for i, dl := range lines {
+		if dl.Path == "" {
+			continue
+		}
+		gi, ok := seen[dl.Path]
+		if !ok {
+			gi = len(groups)
+			seen[dl.Path] = gi
+			groups = append(groups, group{path: dl.Path, lang: dl.Lang})
+		}
+		groups[gi].idxs = append(groups[gi].idxs, i)
+	}
+
+	result := make(map[int][]Token, len(lines))
+
+	for _, g := range groups {
+		// extract raw source lines (stripped of diff prefix)
+		rawLines := make([]string, len(g.idxs))
+		for j, idx := range g.idxs {
+			rawLines[j] = stripDiffPrefix(lines[idx].Text)
+		}
+
+		tokensByLine := hl.TokenizeFile(g.path, g.lang, rawLines)
+
+		for j, idx := range g.idxs {
+			if j < len(tokensByLine) {
+				result[idx] = tokensByLine[j]
+			} else {
+				result[idx] = []Token{}
+			}
+		}
+	}
+	return result
+}
+
+// stripDiffPrefix removes the leading +, -, or space from a diff line.
+func stripDiffPrefix(line string) string {
+	if len(line) > 0 && (line[0] == '+' || line[0] == '-' || line[0] == ' ') {
+		return line[1:]
+	}
+	return line
+}
+
 // Render converts parsed diff lines into a single ANSI-colored string.
 // cursor is the index of the line to highlight (-1 = none).
 // commented is the set of line indices that have pending inline comments.
@@ -124,21 +223,91 @@ func Render(lines []DiffLine, width int, hl Highlighter, cursor int, commented m
 	if commented == nil {
 		commented = map[int]bool{}
 	}
+
+	fileTokens := preTokenize(lines, hl)
+
 	var sb strings.Builder
 	for i, line := range lines {
-		rendered := renderLine(line, width, hl)
-		// comment marker in gutter (leftmost 2 chars)
+		tokens := fileTokens[i] // nil for headers/lines without a path
+		rendered := renderLineWithTokens(line, width, tokens)
+
 		mark := "  "
 		if commented[i] {
 			mark = styleCommentMark.Render("● ")
 		}
-		// cursor highlight overrides normal styling for commentable lines
 		if i == cursor && line.Commentable {
 			rendered = styleCursor.Render(padRight(stripANSI(rendered), width))
 			mark = styleCursor.Render("> ")
 		}
 		sb.WriteString(mark + rendered)
 		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
+// renderLineWithTokens renders a single diff line using pre-computed tokens.
+// tokens may be nil for lines without a path (headers).
+func renderLineWithTokens(line DiffLine, width int, tokens []Token) string {
+	switch line.Type {
+	case DiffHunkHeader:
+		return styleHunkHeader.Render(padRight(line.Text, width))
+	case DiffFileHeader:
+		return styleFileHeader.Render(padRight(line.Text, width))
+	case DiffAdded:
+		return renderColoredLine(line, width, tokens, styleAdded, styleAddedPrefix)
+	case DiffRemoved:
+		return renderColoredLine(line, width, tokens, styleRemoved, styleRemovedPrefix)
+	default:
+		// context line — apply syntax colors on gray background
+		return renderContextLine(line, width, tokens)
+	}
+}
+
+func renderContextLine(line DiffLine, width int, tokens []Token) string {
+	if len(tokens) == 0 {
+		return styleContext.Render(padRight(line.Text, width))
+	}
+	var sb strings.Builder
+	for _, tok := range tokens {
+		if tok.Color != "" {
+			sb.WriteString(styleContext.Copy().Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
+		} else {
+			sb.WriteString(styleContext.Render(tok.Text))
+		}
+	}
+	visibleLen := visibleLength(joinTokensNoColor(tokens))
+	if visibleLen < width {
+		sb.WriteString(styleContext.Render(strings.Repeat(" ", width-visibleLen)))
+	}
+	return sb.String()
+}
+
+func renderColoredLine(line DiffLine, width int, tokens []Token, base, prefixStyle lipgloss.Style) string {
+	if len(tokens) == 0 {
+		return base.Render(padRight(line.Text, width))
+	}
+
+	var sb strings.Builder
+	// the first token is the diff prefix (+/-) — render with brighter gutter style
+	firstIdx := 0
+	prefix := string(line.Text[0:1])
+	if prefix == "+" || prefix == "-" {
+		sb.WriteString(prefixStyle.Render(prefix))
+		firstIdx = 0 // tokens already have the prefix stripped — skip rendering it from tokens
+	}
+	_ = firstIdx
+
+	for _, tok := range tokens {
+		if tok.Color != "" {
+			sb.WriteString(base.Copy().Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
+		} else {
+			sb.WriteString(base.Render(tok.Text))
+		}
+	}
+
+	visibleLen := 1 + visibleLength(joinTokensNoColor(tokens)) // +1 for the prefix char
+	if visibleLen < width {
+		sb.WriteString(base.Render(strings.Repeat(" ", width-visibleLen)))
 	}
 	return sb.String()
 }
@@ -161,50 +330,6 @@ func stripANSI(s string) string {
 		out.WriteRune(r)
 	}
 	return out.String()
-}
-
-func renderLine(line DiffLine, width int, hl Highlighter) string {
-	switch line.Type {
-	case DiffHunkHeader:
-		return styleHunkHeader.Render(padRight(line.Text, width))
-	case DiffFileHeader:
-		return styleFileHeader.Render(padRight(line.Text, width))
-	case DiffAdded:
-		return renderColoredLine(line, width, hl, styleAdded, styleAddedPrefix)
-	case DiffRemoved:
-		return renderColoredLine(line, width, hl, styleRemoved, styleRemovedPrefix)
-	default:
-		tokens := hl.Tokenize(line.Lang, line.Text)
-		return styleContext.Render(padRight(joinTokensNoColor(tokens), width))
-	}
-}
-
-func renderColoredLine(line DiffLine, width int, hl Highlighter, base, prefixStyle lipgloss.Style) string {
-	tokens := hl.Tokenize(line.Lang, line.Text)
-	if len(tokens) == 0 {
-		return base.Render(padRight(line.Text, width))
-	}
-
-	var sb strings.Builder
-	for i, tok := range tokens {
-		if i == 0 && len(tok.Text) == 1 && (tok.Text == "+" || tok.Text == "-") {
-			sb.WriteString(prefixStyle.Render(tok.Text))
-			continue
-		}
-		if tok.Color != "" {
-			sb.WriteString(base.Copy().Foreground(lipgloss.Color(tok.Color)).Render(tok.Text))
-		} else {
-			sb.WriteString(base.Render(tok.Text))
-		}
-	}
-	// pad to width with background
-	text := sb.String()
-	visibleLen := visibleLength(joinTokensNoColor(tokens))
-	if visibleLen < width {
-		sb.WriteString(base.Render(strings.Repeat(" ", width-visibleLen)))
-	}
-	_ = text
-	return sb.String()
 }
 
 func joinTokensNoColor(tokens []Token) string {
