@@ -139,14 +139,18 @@ K ctrl+d; PAUSE 1     # submit inline comment
 # Scene 10: Exit line mode, show approve confirmation
 K Escape; PAUSE 0.6
 K a;      PAUSE 1.8   # approve confirm prompt
+K Escape; PAUSE 0.6   # cancel approve
 
-# Scene 11: Cancel approve, show help
-K Escape; PAUSE 0.6
-K question; PAUSE 2   # help overlay
+# Scene 11: Show merge prompt, select squash
+K m;      PAUSE 1.8   # merge confirm prompt
+K s;      PAUSE 1.5   # squash merge → ✓ PR merged, back to list
 
-# Scene 12: Close help and back to list
+# Scene 12: Show help overlay
+PAUSE 0.5
+K question; PAUSE 2
+
+# Scene 13: Close help
 K question; PAUSE 0.5
-K b;        PAUSE 1
 
 PAUSE 0.5
 

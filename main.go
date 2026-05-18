@@ -59,7 +59,7 @@ func main() {
 		client = github.NewClient("demo-token", demo.Transport{})
 		cache = github.NewCache()
 		repos = []string{"acme/backend"}
-		syntaxHL = false
+		syntaxHL = true
 	} else {
 		cfgPath := config.DefaultConfigPath()
 		cfg, err := config.Load(cfgPath)
