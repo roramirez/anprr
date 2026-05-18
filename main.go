@@ -133,7 +133,7 @@ func cmdLogin(args []string) {
 	fmt.Println("Token saved.")
 }
 
-func cmdRepos(args []string) { //nolint:gocognit
+func cmdRepos(args []string) {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: anprr repos list|add|remove <owner/repo>")
 		os.Exit(1)
@@ -148,59 +148,65 @@ func cmdRepos(args []string) { //nolint:gocognit
 
 	switch args[0] {
 	case "list":
-		if len(cfg.Repos) == 0 {
-			fmt.Println("(none)")
-			return
-		}
-		for _, r := range cfg.Repos {
-			fmt.Println(r)
-		}
-
+		cmdReposList(cfg)
 	case "add":
-		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "Usage: anprr repos add <owner/repo>")
-			os.Exit(1)
-		}
-		repo := args[1]
-		if err := config.ValidateRepo(repo); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-		cfg.Repos = append(cfg.Repos, repo)
-		if err := config.Save(cfgPath, cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Added %s.\n", repo)
-
+		cmdReposAdd(args[1:], cfgPath, cfg)
 	case "remove":
-		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "Usage: anprr repos remove <owner/repo>")
-			os.Exit(1)
-		}
-		repo := args[1]
-		var kept []string
-		removed := false
-		for _, r := range cfg.Repos {
-			if strings.EqualFold(r, repo) {
-				removed = true
-				continue
-			}
-			kept = append(kept, r)
-		}
-		if !removed {
-			fmt.Printf("%s not found.\n", repo)
-			return
-		}
-		cfg.Repos = kept
-		if err := config.Save(cfgPath, cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Removed %s.\n", repo)
-
+		cmdReposRemove(args[1:], cfgPath, cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown subcommand: anprr repos %s\n", args[0])
 		os.Exit(1)
 	}
+}
+
+func cmdReposList(cfg *config.Config) {
+	if len(cfg.Repos) == 0 {
+		fmt.Println("(none)")
+		return
+	}
+	for _, r := range cfg.Repos {
+		fmt.Println(r)
+	}
+}
+
+func cmdReposAdd(args []string, cfgPath string, cfg *config.Config) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: anprr repos add <owner/repo>")
+		os.Exit(1)
+	}
+	repo := args[0]
+	if err := config.ValidateRepo(repo); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	cfg.Repos = append(cfg.Repos, repo)
+	if err := config.Save(cfgPath, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Added %s.\n", repo)
+}
+
+func cmdReposRemove(args []string, cfgPath string, cfg *config.Config) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: anprr repos remove <owner/repo>")
+		os.Exit(1)
+	}
+	repo := args[0]
+	var kept []string
+	for _, r := range cfg.Repos {
+		if !strings.EqualFold(r, repo) {
+			kept = append(kept, r)
+		}
+	}
+	if len(kept) == len(cfg.Repos) {
+		fmt.Printf("%s not found.\n", repo)
+		return
+	}
+	cfg.Repos = kept
+	if err := config.Save(cfgPath, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Removed %s.\n", repo)
 }
