@@ -336,6 +336,62 @@ func TestUpdateListModel_error(t *testing.T) {
 	}
 }
 
+func TestSelectedPR_emptyCursor(t *testing.T) {
+	m := newListModel()
+	m.state = listStateReady
+	_, ok := m.selectedPR()
+	if ok {
+		t.Error("expected false for empty list")
+	}
+}
+
+func TestSelectedPR_cursorBeyondLen(t *testing.T) {
+	m := newListModel()
+	m.state = listStateReady
+	m = m.setCurrentUser("alice")
+	m.allPRs = []github.PR{makePR(1, "alice", "org/repo", false, github.StatusPending)}
+	m.cursor = 99
+	_, ok := m.selectedPR()
+	if ok {
+		t.Error("expected false when cursor >= len")
+	}
+}
+
+func TestUpdateListModel_paginationClampsCursor(t *testing.T) {
+	m := newListModel()
+	m = m.setCurrentUser("alice")
+	m.cursor = 5
+	prs := []github.PR{makePR(1, "alice", "org/repo", false, github.StatusPending)}
+	m, _ = updateListModel(m, PRsLoadedMsg{PRs: prs})
+	if m.cursor != 0 {
+		t.Errorf("cursor should clamp to 0, got %d", m.cursor)
+	}
+}
+
+func TestUpdateListModel_paginationTracking(t *testing.T) {
+	m := newListModel()
+	m = m.setCurrentUser("alice")
+	pr := makePR(1, "alice", "org/repo", false, github.StatusPending)
+	pr.HasNextPage = true
+	pr.EndCursor = "abc"
+	m, _ = updateListModel(m, PRsLoadedMsg{PRs: []github.PR{pr}})
+	if !m.hasNextPage["org/repo"] {
+		t.Error("expected hasNextPage=true for org/repo")
+	}
+	if m.endCursor["org/repo"] != "abc" {
+		t.Errorf("endCursor: got %q", m.endCursor["org/repo"])
+	}
+}
+
+func TestMin(t *testing.T) {
+	if min(3, 5) != 3 {
+		t.Error("min(3,5) should be 3")
+	}
+	if min(7, 2) != 2 {
+		t.Error("min(7,2) should be 2")
+	}
+}
+
 func TestNeedsReReview_noReviews(t *testing.T) {
 	pr := makePR(1, "bob", "org/repo", false, github.StatusPending)
 	if needsReReview(pr, "alice") {

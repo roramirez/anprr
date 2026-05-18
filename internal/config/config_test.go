@@ -98,6 +98,28 @@ func TestDefaultConfigPath_noXdg(t *testing.T) {
 	}
 }
 
+func TestSave_createsParentDir(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nested", "deep", "config.toml")
+	cfg := &Config{Token: "tok2"}
+	if err := Save(path, cfg); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("file not created: %v", err)
+	}
+}
+
+func TestLoad_invalidTOML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.toml")
+	os.WriteFile(path, []byte("not = [valid toml"), 0o600)
+	_, err := Load(path)
+	if err == nil {
+		t.Error("expected error for invalid TOML")
+	}
+}
+
 func TestValidateRepo(t *testing.T) {
 	cases := []struct {
 		repo string

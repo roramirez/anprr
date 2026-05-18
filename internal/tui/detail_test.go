@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/roramirez/anprr/internal/diff"
 	"github.com/roramirez/anprr/internal/github"
 )
 
@@ -317,6 +318,141 @@ func TestUpdateDetailDiff_error(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("expected error status cmd")
+	}
+}
+
+// splitRepo
+
+func TestSplitRepo(t *testing.T) {
+	cases := []struct {
+		repo      string
+		wantOwner string
+		wantName  string
+	}{
+		{"owner/repo", "owner", "repo"},
+		{"myorg/my-service", "myorg", "my-service"},
+		{"noslash", "noslash", ""},
+	}
+	for _, c := range cases {
+		owner, name := splitRepo(c.repo)
+		if owner != c.wantOwner || name != c.wantName {
+			t.Errorf("splitRepo(%q) = (%q,%q), want (%q,%q)", c.repo, owner, name, c.wantOwner, c.wantName)
+		}
+	}
+}
+
+// firstCommentableLine / nextCommentable / prevCommentable
+
+func TestFirstCommentableLine_noCommentable(t *testing.T) {
+	m := newDetailModel()
+	// only headers — no commentable lines
+	m.diffLines = []diff.DiffLine{
+		{Type: diff.DiffFileHeader, Text: "diff --git a/x b/x"},
+		{Type: diff.DiffHunkHeader, Text: "@@ -1 +1 @@"},
+	}
+	// should return 0 (fallback), not panic
+	got := m.firstCommentableLine()
+	if got != 0 {
+		t.Errorf("expected 0 fallback, got %d", got)
+	}
+}
+
+func TestNextCommentable_clampsAtEnd(t *testing.T) {
+	m := loadedDetail()
+	lastIdx := len(m.diffLines) - 1
+	m.lineCursor = lastIdx
+	// nextCommentable beyond end should return current cursor
+	got := m.nextCommentable(lastIdx + 10)
+	if got != lastIdx {
+		t.Errorf("expected clamp to %d, got %d", lastIdx, got)
+	}
+}
+
+func TestPrevCommentable_clampsAtStart(t *testing.T) {
+	m := loadedDetail()
+	m.lineCursor = m.firstCommentableLine()
+	got := m.prevCommentable(-1)
+	if got != m.lineCursor {
+		t.Errorf("expected clamp, got %d", got)
+	}
+}
+
+// renderComments empty path
+
+func TestDetailModel_tab3EmptyComments(t *testing.T) {
+	m := loadedDetail()
+	m.pr.CommentsLoaded = true
+	m.pr.Comments = nil
+	m.pr.LineComments = nil
+
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("3")}, nil, nil)
+	content := m.vp.View()
+	if !strings.Contains(content, "No comments") {
+		t.Errorf("expected 'No comments' message, got: %q", content[:min(len(content), 80)])
+	}
+}
+
+// handleMergeConfirm
+
+func TestDetailModel_mergeConfirm_squash(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateMergeConfirm
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")}, nil, nil)
+	if m.state != detailStateSubmitting {
+		t.Errorf("expected submitting after s, got %d", m.state)
+	}
+}
+
+func TestDetailModel_mergeConfirm_esc(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateMergeConfirm
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyEsc}, nil, nil)
+	if m.state != detailStateReady {
+		t.Errorf("expected ready after esc, got %d", m.state)
+	}
+}
+
+func TestDetailModel_mergeConfirm_rebase(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateMergeConfirm
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")}, nil, nil)
+	if m.state != detailStateSubmitting {
+		t.Errorf("expected submitting after r, got %d", m.state)
+	}
+}
+
+// handleCommentInput request-changes path
+
+func TestDetailModel_commentInput_requestChanges_submits(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateCommentInput
+	m.pending = actionRequestChanges
+	m.input.SetValue("needs nil check")
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyCtrlD}, nil, nil)
+	if m.state != detailStateSubmitting {
+		t.Errorf("expected submitting, got %d", m.state)
+	}
+}
+
+func TestDetailModel_commentInput_emptyBodyNoOp(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateCommentInput
+	m.pending = actionComment
+	// don't set value — empty body
+	m2, _ := m.update(tea.KeyMsg{Type: tea.KeyCtrlD}, nil, nil)
+	if m2.state != detailStateCommentInput {
+		t.Error("empty body should stay in comment input state")
+	}
+}
+
+// submitting state escape
+
+func TestDetailModel_submittingEscReturnsReady(t *testing.T) {
+	m := loadedDetail()
+	m.state = detailStateSubmitting
+	m, _ = m.update(tea.KeyMsg{Type: tea.KeyEsc}, nil, nil)
+	if m.state != detailStateReady {
+		t.Errorf("expected ready after esc in submitting, got %d", m.state)
 	}
 }
 
