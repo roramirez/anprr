@@ -99,6 +99,15 @@ func (m DetailModel) setSize(w, h int) DetailModel {
 	return m
 }
 
+// resetToReady transitions back to the ready state, clearing any input or pending action.
+// Used when an API call fails or the user escapes while submitting.
+func (m DetailModel) resetToReady() DetailModel {
+	m.state = detailStateReady
+	m.pending = actionNone
+	m.input.Reset()
+	return m
+}
+
 func (m DetailModel) setPR(pr github.PR, focusComment bool) DetailModel {
 	m.pr = pr
 	if focusComment {
@@ -133,6 +142,13 @@ func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Ca
 
 		case detailStateMergeConfirm:
 			return m.handleMergeConfirm(msg, client)
+
+		case detailStateSubmitting:
+			// safety escape: if the request hangs or never resolves, b/esc returns to ready
+			if msg.String() == "b" || msg.String() == "esc" {
+				m = m.resetToReady()
+			}
+			return m, nil
 
 		case detailStateReady:
 			return m.handleReady(msg, client, cache)
@@ -516,7 +532,7 @@ func (m DetailModel) renderFooter(width int, statusBar string) string {
 	case detailStateLineSelect:
 		keys = StyleFooter.Render("j/k=move  n/enter=comment here  esc=exit line mode")
 	case detailStateSubmitting:
-		keys = StyleFooter.Render(m.spinner.View() + " Submitting…")
+		keys = StyleFooter.Render(m.spinner.View() + " Submitting…  esc=cancel")
 	default:
 		viewLabel := "[unified]"
 		if m.diffView == viewSplit {

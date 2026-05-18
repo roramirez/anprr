@@ -118,6 +118,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MergeDoneMsg:
 		m.cache.Invalidate()
 		if msg.Err != nil {
+			m.detail = m.detail.resetToReady()
 			return m, statusCmd("Merge failed: "+msg.Err.Error(), true)
 		}
 		m.active = screenList
@@ -129,12 +130,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ReviewDoneMsg:
 		m.cache.Invalidate()
 		if msg.Err != nil {
+			m.detail = m.detail.resetToReady()
 			return m, tea.Batch(statusCmd(msg.Err.Error(), true), fetchPRsCmd(m.client, m.cache, m.repos))
 		}
 		return m, tea.Batch(statusCmd("✓ Review submitted", false), fetchPRsCmd(m.client, m.cache, m.repos))
 
 	case CommentDoneMsg:
 		if msg.Err != nil {
+			m.detail = m.detail.resetToReady()
 			return m, statusCmd(msg.Err.Error(), true)
 		}
 		return m, statusCmd("✓ Comment posted", false)
