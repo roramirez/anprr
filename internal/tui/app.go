@@ -29,8 +29,8 @@ type AppModel struct {
 	repos       []string
 	syntaxHL    bool
 
-	width  int
-	height int
+	width    int
+	height   int
 	tooSmall bool
 
 	active   screen

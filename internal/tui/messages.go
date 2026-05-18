@@ -14,11 +14,11 @@ type PRsLoadedMsg struct {
 
 // MorePRsLoadedMsg is sent when load-more fetch completes.
 type MorePRsLoadedMsg struct {
-	PRs        []github.PR
-	HasNext    bool
-	EndCursor  string
-	Repo       string
-	Err        error
+	PRs       []github.PR
+	HasNext   bool
+	EndCursor string
+	Repo      string
+	Err       error
 }
 
 // DiffLoadedMsg is sent when a diff fetch completes.
@@ -45,8 +45,8 @@ type CurrentUserMsg struct {
 
 // NavigateToDetailMsg triggers navigation to the detail screen.
 type NavigateToDetailMsg struct {
-	PR            github.PR
-	FocusComment  bool // true when coming from 'r' on list screen
+	PR           github.PR
+	FocusComment bool // true when coming from 'r' on list screen
 }
 
 // NavigateToListMsg triggers navigation back to the list screen.

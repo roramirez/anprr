@@ -119,8 +119,8 @@ func TestListModel_allOpenTab(t *testing.T) {
 	m.state = listStateReady
 	m = m.setCurrentUser("alice")
 	m.allPRs = []github.PR{
-		makePR(1, "alice", "org/repo", false, github.StatusPending), // mine
-		makePR(2, "bob", "org/repo", false, github.StatusPending),   // not mine
+		makePR(1, "alice", "org/repo", false, github.StatusPending),  // mine
+		makePR(2, "bob", "org/repo", false, github.StatusPending),    // not mine
 		makePR(3, "carol", "org/repo", false, github.StatusApproved), // not mine, approved
 	}
 

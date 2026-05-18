@@ -8,8 +8,8 @@ type SplitRow struct {
 
 	// Content rows have a left side (old file) and/or right side (new file).
 	// nil means the slot is empty (no matching line on that side).
-	Left    *DiffLine
-	Right   *DiffLine
+	Left     *DiffLine
+	Right    *DiffLine
 	LeftIdx  int // index into source []DiffLine (-1 = empty slot)
 	RightIdx int // index into source []DiffLine (-1 = empty slot)
 }
