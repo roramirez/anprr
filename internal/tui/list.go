@@ -245,28 +245,35 @@ func updateListModel(m ListModel, msg PRsLoadedMsg) (ListModel, []tea.Cmd) {
 	m.allPRs = msg.PRs
 	m.state = listStateReady
 	m.err = nil
+	m = m.updatePaginationInfo()
+	m = m.clampCursor()
+	return m, nil
+}
 
-	// update pagination info from last PR per repo
+// updatePaginationInfo scans PRs in reverse to record the last-seen page info
+// per repo (the last PR in each repo carries the pageInfo for that repo).
+func (m ListModel) updatePaginationInfo() ListModel {
 	repoSeen := map[string]bool{}
 	for i := len(m.allPRs) - 1; i >= 0; i-- {
 		pr := m.allPRs[i]
-		if !repoSeen[pr.Repo] {
-			repoSeen[pr.Repo] = true
-			if pr.HasNextPage {
-				m.hasNextPage[pr.Repo] = true
-				m.endCursor[pr.Repo] = pr.EndCursor
-			} else {
-				m.hasNextPage[pr.Repo] = false
-			}
+		if repoSeen[pr.Repo] {
+			continue
+		}
+		repoSeen[pr.Repo] = true
+		m.hasNextPage[pr.Repo] = pr.HasNextPage
+		if pr.HasNextPage {
+			m.endCursor[pr.Repo] = pr.EndCursor
 		}
 	}
+	return m
+}
 
-	// clamp cursor
+func (m ListModel) clampCursor() ListModel {
 	prs := m.visiblePRs()
 	if m.cursor >= len(prs) && len(prs) > 0 {
 		m.cursor = len(prs) - 1
 	}
-	return m, nil
+	return m
 }
 
 func updateListModelMore(m ListModel, msg MorePRsLoadedMsg) (ListModel, []tea.Cmd) {
@@ -345,37 +352,46 @@ func (m ListModel) renderBody(width, height int) string {
 		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center,
 			StyleStatusBarError.Render("Error: "+m.err.Error()))
 	}
-
 	prs := m.visiblePRs()
 	if len(prs) == 0 {
-		msg := "No PRs found."
-		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, msg)
+		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, "No PRs found.")
 	}
-
-	var lines []string
-	for i, pr := range prs {
-		line := m.renderPRRow(pr, i == m.cursor, width)
-		lines = append(lines, line)
-	}
-
-	// pagination notice
-	anyMore := false
-	for _, has := range m.hasNextPage {
-		if has {
-			anyMore = true
-			break
-		}
-	}
-	if anyMore {
+	lines := m.renderPRLines(prs, width)
+	if m.hasPagination() {
 		lines = append(lines, StyleStatusBar.Render("  Showing first 50 — press F to load more"))
 	}
-
-	// pad to fill height
 	for len(lines) < height {
 		lines = append(lines, strings.Repeat(" ", width))
 	}
-
 	return strings.Join(lines[:min(len(lines), height)], "\n")
+}
+
+func (m ListModel) renderPRLines(prs []github.PR, width int) []string {
+	lines := make([]string, len(prs))
+	for i, pr := range prs {
+		lines[i] = m.renderPRRow(pr, i == m.cursor, width)
+	}
+	return lines
+}
+
+func (m ListModel) hasPagination() bool {
+	for _, has := range m.hasNextPage {
+		if has {
+			return true
+		}
+	}
+	return false
+}
+
+func prTitleAndStyle(pr github.PR) (string, lipgloss.Style) {
+	switch {
+	case pr.IsDraft:
+		return "[draft] " + pr.Title, StylePRTitleDraft
+	case pr.Author.IsBot:
+		return "[bot] " + pr.Title, StylePRTitleDraft
+	default:
+		return pr.Title, StylePRTitle
+	}
 }
 
 func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
@@ -384,16 +400,7 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 		cursor = StyleCursor.Render("▶ ")
 	}
 
-	title := pr.Title
-	titleStyle := StylePRTitle
-	switch {
-	case pr.IsDraft:
-		title = "[draft] " + title
-		titleStyle = StylePRTitleDraft
-	case pr.Author.IsBot:
-		title = "[bot] " + title
-		titleStyle = StylePRTitleDraft // reuse dimmed style for bots
-	}
+	title, titleStyle := prTitleAndStyle(pr)
 
 	dot, dotStyle := statusDot(pr)
 	age := timeAgo(pr.UpdatedAt)
