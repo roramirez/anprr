@@ -3,6 +3,7 @@
 package demo
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,104 +13,9 @@ import (
 )
 
 // MockDiff is a realistic Go unified diff used in the demo detail view.
-const MockDiff = `diff --git a/internal/auth/token.go b/internal/auth/token.go
---- a/internal/auth/token.go
-+++ b/internal/auth/token.go
-@@ -18,12 +18,24 @@ import (
- 	"time"
- )
-
-+var ErrTokenExpired = errors.New("token has expired")
-+
- type Token struct {
- 	Value     string
- 	ExpiresAt time.Time
-+	Scopes    []string
- }
-
--func Validate(t *Token) error {
--	if t == nil {
--		return errors.New("token is nil")
--	}
--	return nil
-+func Validate(t *Token, required ...string) error {
-+	if t == nil {
-+		return errors.New("token is nil")
-+	}
-+	if time.Now().After(t.ExpiresAt) {
-+		return ErrTokenExpired
-+	}
-+	for _, scope := range required {
-+		if !hasScope(t.Scopes, scope) {
-+			return fmt.Errorf("missing required scope: %s", scope)
-+		}
-+	}
-+	return nil
-+}
-+
-+func hasScope(scopes []string, s string) bool {
-+	for _, v := range scopes {
-+		if v == s {
-+			return true
-+		}
-+	}
-+	return false
- }
-+
-+// buildQuery returns the SQL query for token audit logs.
-+func buildQuery(userID int) string {
-+	return fmt.Sprintf(` + "`" + `
-+		SELECT token_hash, created_at, last_used_at
-+		FROM auth_tokens
-+		WHERE user_id = %d
-+		  AND revoked_at IS NULL
-+		ORDER BY created_at DESC
-+	` + "`" + `, userID)
-+}
-diff --git a/internal/auth/token_test.go b/internal/auth/token_test.go
---- a/internal/auth/token_test.go
-+++ b/internal/auth/token_test.go
-@@ -1,18 +1,42 @@
- package auth
-
- import (
-+	"errors"
- 	"testing"
-+	"time"
- )
-
--func TestValidate_nil(t *testing.T) {
--	if err := Validate(nil); err == nil {
--		t.Error("expected error for nil token")
-+func TestValidate(t *testing.T) {
-+	valid := &Token{
-+		Value:     "tok",
-+		ExpiresAt: time.Now().Add(time.Hour),
-+		Scopes:    []string{"repo", "read:user"},
- 	}
--}
-
--func TestValidate_ok(t *testing.T) {
--	tok := &Token{Value: "abc"}
--	if err := Validate(tok); err != nil {
--		t.Errorf("unexpected error: %v", err)
-+	if err := Validate(valid, "repo"); err != nil {
-+		t.Fatalf("unexpected error: %v", err)
-+	}
-+
-+	expired := &Token{
-+		Value:     "old",
-+		ExpiresAt: time.Now().Add(-time.Hour),
-+	}
-+	if !errors.Is(Validate(expired), ErrTokenExpired) {
-+		t.Error("expected ErrTokenExpired")
-+	}
-+
-+	if err := Validate(valid, "admin"); err == nil {
-+		t.Error("expected error for missing scope")
- 	}
- }
-`
+//
+//go:embed testdata/mock.diff
+var MockDiff string
 
 // MockUser is the fake authenticated user login.
 const MockUser = "roramirez"
@@ -266,50 +172,43 @@ type Transport struct{}
 
 func (Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	path := req.URL.Path
-	var body interface{}
-
 	switch {
 	case path == "/user":
-		body = map[string]string{"login": MockUser}
-
+		return jsonResponse(map[string]string{"login": MockUser}), nil
 	case path == "/graphql":
-		wrapper := map[string]interface{}{
-			"data":   GraphQLResponse(),
-			"errors": nil,
-		}
-		body = wrapper
-
-	case strings.Contains(path, "/issues/") && strings.HasSuffix(path, "/comments") && req.Method == http.MethodGet:
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(mockCommentsJSON)),
-			Header:     make(http.Header),
-		}, nil
-
-	case strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/comments") && req.Method == http.MethodGet:
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(mockReviewCommentsJSON)),
-			Header:     make(http.Header),
-		}, nil
-
-	case strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/merge") && req.Method == http.MethodPut:
-		body = map[string]string{"sha": "abc123", "merged": "true", "message": "PR merged"}
-
-	case strings.Contains(path, "/pulls/") && req.Header.Get("Accept") == "application/vnd.github.v3.diff":
-		return &http.Response{
-			StatusCode: 200,
-			Body:       io.NopCloser(strings.NewReader(MockDiff)),
-			Header:     make(http.Header),
-		}, nil
-
+		return jsonResponse(map[string]interface{}{"data": GraphQLResponse(), "errors": nil}), nil
+	case isGetIssueComments(path, req.Method):
+		return rawResponse(mockCommentsJSON), nil
+	case isGetPullComments(path, req.Method):
+		return rawResponse(mockReviewCommentsJSON), nil
+	case isPullMerge(path, req.Method):
+		return jsonResponse(map[string]string{"sha": "abc123", "merged": "true", "message": "PR merged"}), nil
+	case isPullDiff(path, req):
+		return rawResponse(MockDiff), nil
 	case path == "/search/issues":
-		body = SearchResponse()
-
+		return jsonResponse(SearchResponse()), nil
 	default:
-		body = map[string]interface{}{}
+		return jsonResponse(map[string]interface{}{}), nil
 	}
+}
 
+func isGetIssueComments(path, method string) bool {
+	return strings.Contains(path, "/issues/") && strings.HasSuffix(path, "/comments") && method == http.MethodGet
+}
+
+func isGetPullComments(path, method string) bool {
+	return strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/comments") && method == http.MethodGet
+}
+
+func isPullMerge(path, method string) bool {
+	return strings.Contains(path, "/pulls/") && strings.HasSuffix(path, "/merge") && method == http.MethodPut
+}
+
+func isPullDiff(path string, req *http.Request) bool {
+	return strings.Contains(path, "/pulls/") && req.Header.Get("Accept") == "application/vnd.github.v3.diff"
+}
+
+func jsonResponse(body interface{}) *http.Response {
 	data, _ := json.Marshal(body)
 	h := make(http.Header)
 	h.Set("X-RateLimit-Remaining", "4999")
@@ -318,5 +217,13 @@ func (Transport) RoundTrip(req *http.Request) (*http.Response, error) {
 		StatusCode: 200,
 		Body:       io.NopCloser(strings.NewReader(string(data))),
 		Header:     h,
-	}, nil
+	}
+}
+
+func rawResponse(body string) *http.Response {
+	return &http.Response{
+		StatusCode: 200,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}
 }
