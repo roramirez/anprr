@@ -154,20 +154,30 @@ func parseListPRsResponse(data map[string]json.RawMessage, aliasMap map[string]s
 		if !ok {
 			continue
 		}
-		var repo gqlRepo
-		if err := json.Unmarshal(raw, &repo); err != nil {
-			return nil, fmt.Errorf("parsing repo %s: %w", repoName, err)
+		prs, err := parsePRsForRepo(raw, repoName)
+		if err != nil {
+			return nil, err
 		}
-		for i, node := range repo.PullRequests.Nodes {
-			pr := convertPR(node, repoName)
-			if i == len(repo.PullRequests.Nodes)-1 {
-				pr.HasNextPage = repo.PullRequests.PageInfo.HasNextPage
-				pr.EndCursor = repo.PullRequests.PageInfo.EndCursor
-			}
-			result = append(result, pr)
-		}
+		result = append(result, prs...)
 	}
 	return result, nil
+}
+
+func parsePRsForRepo(raw json.RawMessage, repoName string) ([]PR, error) {
+	var repo gqlRepo
+	if err := json.Unmarshal(raw, &repo); err != nil {
+		return nil, fmt.Errorf("parsing repo %s: %w", repoName, err)
+	}
+	nodes := repo.PullRequests.Nodes
+	prs := make([]PR, len(nodes))
+	for i, node := range nodes {
+		prs[i] = convertPR(node, repoName)
+	}
+	if len(prs) > 0 {
+		prs[len(prs)-1].HasNextPage = repo.PullRequests.PageInfo.HasNextPage
+		prs[len(prs)-1].EndCursor = repo.PullRequests.PageInfo.EndCursor
+	}
+	return prs, nil
 }
 
 func convertPR(node gqlPR, repo string) PR {
@@ -191,12 +201,7 @@ func convertPR(node gqlPR, repo string) PR {
 	createdAt, _ := time.Parse(time.RFC3339, node.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, node.UpdatedAt)
 
-	checkState := ""
-	if len(node.Commits.Nodes) > 0 {
-		if r := node.Commits.Nodes[0].Commit.StatusCheckRollup; r != nil {
-			checkState = r.State
-		}
-	}
+	checkState := extractCheckState(node)
 
 	pr := PR{
 		Number:             node.Number,
@@ -221,6 +226,16 @@ func convertPR(node gqlPR, repo string) PR {
 	return pr
 }
 
+func extractCheckState(node gqlPR) string {
+	if len(node.Commits.Nodes) == 0 {
+		return ""
+	}
+	if r := node.Commits.Nodes[0].Commit.StatusCheckRollup; r != nil {
+		return r.State
+	}
+	return ""
+}
+
 // isBotAuthor returns true if the author is a bot or automated account.
 // Checks GraphQL __typename ("Bot", "Mannequin") and common login patterns
 // like "dependabot[bot]", "app/dependabot", "renovate[bot]".
@@ -237,9 +252,14 @@ func DerivePRStatus(pr PR) PRStatus {
 	if pr.Mergeable == "CONFLICTING" {
 		return StatusConflict
 	}
-	// group by reviewer, take latest per reviewer
+	return statusFromLatestReviews(collectLatestReviews(pr.Reviews))
+}
+
+// collectLatestReviews groups reviews by reviewer login, keeping only the most
+// recent actionable review per person (COMMENTED and DISMISSED are skipped).
+func collectLatestReviews(reviews []Review) map[string]Review {
 	latest := map[string]Review{}
-	for _, r := range pr.Reviews {
+	for _, r := range reviews {
 		if r.State == "COMMENTED" || r.State == "DISMISSED" {
 			continue
 		}
@@ -247,6 +267,11 @@ func DerivePRStatus(pr PR) PRStatus {
 			latest[r.Author.Login] = r
 		}
 	}
+	return latest
+}
+
+// statusFromLatestReviews derives PRStatus from the latest-per-reviewer map.
+func statusFromLatestReviews(latest map[string]Review) PRStatus {
 	hasApproved := false
 	for _, r := range latest {
 		if r.State == "CHANGES_REQUESTED" {
