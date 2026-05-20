@@ -140,56 +140,54 @@ func (m DetailModel) setPR(pr github.PR, focusComment bool) DetailModel {
 
 func (m DetailModel) update(msg tea.Msg, client *github.Client, cache *github.Cache) (DetailModel, tea.Cmd) {
 	switch msg := msg.(type) {
-
 	case CommentsLoadedMsg:
-		if msg.Err != nil {
-			return m, statusCmd("Error loading comments: "+msg.Err.Error(), true)
-		}
-		m.pr.Comments = msg.Comments
-		m.pr.LineComments = msg.LineComments
-		m.pr.CommentsLoaded = true
-		if m.activeTab == detailTabComments {
-			m.renderComments()
-		}
-		return m, nil
-
+		return m.handleCommentsLoaded(msg)
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
-
 	case tea.KeyMsg:
-		switch m.state {
-
-		case detailStateCommentInput:
-			return m.handleCommentInput(msg, client)
-
-		case detailStateLineSelect:
-			return m.handleLineSelect(msg, client)
-
-		case detailStateApproveConfirm:
-			return m.handleApproveConfirm(msg, client)
-
-		case detailStateMergeConfirm:
-			return m.handleMergeConfirm(msg, client)
-
-		case detailStateSubmitting:
-			// safety escape: if the request hangs or never resolves, b/esc returns to ready
-			if msg.String() == "b" || msg.String() == keyEsc {
-				m = m.resetToReady()
-			}
-			return m, nil
-
-		case detailStateReady:
-			return m.handleReady(msg, client, cache)
-		}
-
+		return m.handleKeyByState(msg, client, cache)
 	default:
 		if m.state == detailStateReady || m.state == detailStateLineSelect {
 			var cmd tea.Cmd
 			m.vp, cmd = m.vp.Update(msg)
 			return m, cmd
 		}
+	}
+	return m, nil
+}
+
+func (m DetailModel) handleCommentsLoaded(msg CommentsLoadedMsg) (DetailModel, tea.Cmd) {
+	if msg.Err != nil {
+		return m, statusCmd("Error loading comments: "+msg.Err.Error(), true)
+	}
+	m.pr.Comments = msg.Comments
+	m.pr.LineComments = msg.LineComments
+	m.pr.CommentsLoaded = true
+	if m.activeTab == detailTabComments {
+		m.renderComments()
+	}
+	return m, nil
+}
+
+func (m DetailModel) handleKeyByState(msg tea.KeyMsg, client *github.Client, cache *github.Cache) (DetailModel, tea.Cmd) {
+	switch m.state {
+	case detailStateCommentInput:
+		return m.handleCommentInput(msg, client)
+	case detailStateLineSelect:
+		return m.handleLineSelect(msg, client)
+	case detailStateApproveConfirm:
+		return m.handleApproveConfirm(msg, client)
+	case detailStateMergeConfirm:
+		return m.handleMergeConfirm(msg, client)
+	case detailStateSubmitting:
+		if msg.String() == "b" || msg.String() == keyEsc {
+			m = m.resetToReady()
+		}
+		return m, nil
+	case detailStateReady:
+		return m.handleReady(msg, client, cache)
 	}
 	return m, nil
 }
@@ -279,28 +277,11 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 		m.state = detailStateApproveConfirm
 		return m, nil
 	case "m":
-		if m.pr.IsDraft {
-			return m, statusCmd("Cannot merge a draft PR", true)
-		}
-		if m.pr.Mergeable == "CONFLICTING" {
-			return m, statusCmd("PR has conflicts — resolve before merging", true)
-		}
-		m.state = detailStateMergeConfirm
-		return m, nil
+		return m.handleMergeKey()
 	case "r":
-		m.state = detailStateCommentInput
-		m.pending = actionRequestChanges
-		m.input.Placeholder = "Describe the changes needed…"
-		m.input.SetWidth(m.width - inputWidthOffset)
-		m.input.Focus()
-		return m, textarea.Blink
+		return m.openCommentInput(actionRequestChanges, "Describe the changes needed…")
 	case "c":
-		m.state = detailStateCommentInput
-		m.pending = actionComment
-		m.input.Placeholder = "Enter your comment…"
-		m.input.SetWidth(m.width - inputWidthOffset)
-		m.input.Focus()
-		return m, textarea.Blink
+		return m.openCommentInput(actionComment, "Enter your comment…")
 	case "f":
 		cache.Invalidate()
 		m.state = detailStateLoading
@@ -353,60 +334,83 @@ func (m DetailModel) handleLineSelect(msg tea.KeyMsg, _ *github.Client) (DetailM
 	return m, nil
 }
 
+func (m DetailModel) handleMergeKey() (DetailModel, tea.Cmd) {
+	if m.pr.IsDraft {
+		return m, statusCmd("Cannot merge a draft PR", true)
+	}
+	if m.pr.Mergeable == "CONFLICTING" {
+		return m, statusCmd("PR has conflicts — resolve before merging", true)
+	}
+	m.state = detailStateMergeConfirm
+	return m, nil
+}
+
+func (m DetailModel) openCommentInput(action pendingAction, placeholder string) (DetailModel, tea.Cmd) {
+	m.state = detailStateCommentInput
+	m.pending = action
+	m.input.Placeholder = placeholder
+	m.input.SetWidth(m.width - inputWidthOffset)
+	m.input.Focus()
+	return m, textarea.Blink
+}
+
 func (m DetailModel) handleCommentInput(msg tea.KeyMsg, client *github.Client) (DetailModel, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+d":
-		body := strings.TrimSpace(m.input.Value())
-		if body == "" {
-			return m, nil
-		}
-		m.input.Reset()
-
-		switch m.pending {
-		case actionInlineComment:
-			dl := m.diffLines[m.lineCursor]
-			m.commentedLines[m.lineCursor] = true
-			m.pendingComments = append(m.pendingComments, github.InlineComment{
-				Path: dl.Path,
-				Line: diff.CommentLine(dl),
-				Side: diff.CommentSide(dl),
-				Body: body,
-			})
-			m.state = detailStateLineSelect
-			m.rerender()
-			return m, statusCmd(fmt.Sprintf("✓ Comment added (%d pending)", len(m.pendingComments)), false)
-
-		case actionApprove:
-			m.state = detailStateSubmitting
-			return m, submitReviewCmd(client, m.pr, github.ReviewApprove, body, m.pendingComments)
-
-		case actionRequestChanges:
-			m.state = detailStateSubmitting
-			return m, submitReviewCmd(client, m.pr, github.ReviewRequestChanges, body, m.pendingComments)
-
-		case actionComment:
-			m.state = detailStateSubmitting
-			owner, repo := splitRepo(m.pr.Repo)
-			return m, postCommentCmd(client, owner, repo, m.pr.Number, body)
-		}
-
+		return m.handleCommentSubmit(client)
 	case keyEsc:
-		switch m.pending {
-		case actionInlineComment:
-			m.state = detailStateLineSelect
-		case actionApprove:
-			m.state = detailStateApproveConfirm // go back to confirm prompt
-		default:
-			m.state = detailStateReady
-		}
-		m.input.Reset()
-		m.pending = actionNone
-		return m, nil
+		return m.handleCommentCancel(), nil
 	}
-
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
 	return m, cmd
+}
+
+func (m DetailModel) handleCommentSubmit(client *github.Client) (DetailModel, tea.Cmd) {
+	body := strings.TrimSpace(m.input.Value())
+	if body == "" {
+		return m, nil
+	}
+	m.input.Reset()
+	switch m.pending {
+	case actionInlineComment:
+		dl := m.diffLines[m.lineCursor]
+		m.commentedLines[m.lineCursor] = true
+		m.pendingComments = append(m.pendingComments, github.InlineComment{
+			Path: dl.Path,
+			Line: diff.CommentLine(dl),
+			Side: diff.CommentSide(dl),
+			Body: body,
+		})
+		m.state = detailStateLineSelect
+		m.rerender()
+		return m, statusCmd(fmt.Sprintf("✓ Comment added (%d pending)", len(m.pendingComments)), false)
+	case actionApprove:
+		m.state = detailStateSubmitting
+		return m, submitReviewCmd(client, m.pr, github.ReviewApprove, body, m.pendingComments)
+	case actionRequestChanges:
+		m.state = detailStateSubmitting
+		return m, submitReviewCmd(client, m.pr, github.ReviewRequestChanges, body, m.pendingComments)
+	case actionComment:
+		m.state = detailStateSubmitting
+		owner, repo := splitRepo(m.pr.Repo)
+		return m, postCommentCmd(client, owner, repo, m.pr.Number, body)
+	}
+	return m, nil
+}
+
+func (m DetailModel) handleCommentCancel() DetailModel {
+	switch m.pending {
+	case actionInlineComment:
+		m.state = detailStateLineSelect
+	case actionApprove:
+		m.state = detailStateApproveConfirm
+	default:
+		m.state = detailStateReady
+	}
+	m.input.Reset()
+	m.pending = actionNone
+	return m
 }
 
 func updateDetailDiff(m DetailModel, msg DiffLoadedMsg, syntaxHL bool) (DetailModel, tea.Cmd) {
@@ -473,28 +477,27 @@ func (m *DetailModel) renderComments() {
 	sep := strings.Repeat("─", m.vp.Width)
 
 	for _, c := range m.pr.Comments {
-		sb.WriteString(StyleHelpKey.Render(c.Author.Login))
-		sb.WriteString(StylePRAge.Render("  " + timeAgo(c.CreatedAt)))
-		sb.WriteByte('\n')
-		for _, line := range strings.Split(strings.TrimSpace(c.Body), "\n") {
-			sb.WriteString("  " + StylePRTitle.Render(line) + "\n")
-		}
-		sb.WriteString(StylePRAge.Render(sep) + "\n")
+		renderCommentBlock(&sb, c.Author.Login, timeAgo(c.CreatedAt), c.Body, sep)
 	}
 	for _, rc := range m.pr.LineComments {
-		sb.WriteString(StyleHelpKey.Render(rc.Author.Login))
-		sb.WriteString(StylePRAge.Render("  " + rc.Path))
+		loc := rc.Path
 		if rc.Line > 0 {
-			sb.WriteString(StylePRAge.Render(fmt.Sprintf(":%d", rc.Line)))
+			loc += fmt.Sprintf(":%d", rc.Line)
 		}
-		sb.WriteByte('\n')
-		for _, line := range strings.Split(strings.TrimSpace(rc.Body), "\n") {
-			sb.WriteString("  " + StylePRTitle.Render(line) + "\n")
-		}
-		sb.WriteString(StylePRAge.Render(sep) + "\n")
+		renderCommentBlock(&sb, rc.Author.Login, loc, rc.Body, sep)
 	}
 	m.vp.SetContent(sb.String())
 	m.vp.GotoTop()
+}
+
+func renderCommentBlock(sb *strings.Builder, author, meta, body, sep string) {
+	sb.WriteString(StyleHelpKey.Render(author))
+	sb.WriteString(StylePRAge.Render("  " + meta))
+	sb.WriteByte('\n')
+	for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+		sb.WriteString("  " + StylePRTitle.Render(line) + "\n")
+	}
+	sb.WriteString(StylePRAge.Render(sep) + "\n")
 }
 
 func (m DetailModel) firstCommentableLine() int {
@@ -630,61 +633,74 @@ func renderConfirmBox(width int, content string) string {
 }
 
 func (m DetailModel) renderFooter(width int, statusBar string) string {
-	var keys string
 	switch m.state {
 	case detailStateMergeConfirm:
-		return renderConfirmBox(width,
-			StyleStatusBarOK.Render("Merge PR #"+fmt.Sprint(m.pr.Number)+"?")+"\n\n"+
-				StyleHelpKey.Render("s / enter")+StyleHelpDesc.Render("Squash and merge (recommended)")+"\n"+
-				StyleHelpKey.Render("m        ")+StyleHelpDesc.Render("Merge commit")+"\n"+
-				StyleHelpKey.Render("r        ")+StyleHelpDesc.Render("Rebase and merge")+"\n"+
-				StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
-		)
-
+		return m.renderMergeConfirmFooter(width)
 	case detailStateApproveConfirm:
-		pending := ""
-		if len(m.pendingComments) > 0 {
-			pending = fmt.Sprintf("  (%d inline comment(s) will be included)", len(m.pendingComments))
-		}
-		return renderConfirmBox(width,
-			StyleStatusBarOK.Render("Approve PR #"+fmt.Sprint(m.pr.Number)+"?")+pending+"\n\n"+
-				StyleHelpKey.Render("y / enter")+StyleHelpDesc.Render("Approve now")+"\n"+
-				StyleHelpKey.Render("c        ")+StyleHelpDesc.Render("Approve with a comment")+"\n"+
-				StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
-		)
-
+		return m.renderApproveConfirmFooter(width)
 	case detailStateCommentInput:
-		pos := ""
-		if m.pending == actionInlineComment && m.lineCursor < len(m.diffLines) {
-			pos = StyleHelpKey.Render(diff.FormatPosition(m.diffLines[m.lineCursor])) + "  "
-		}
-		keys = pos + StyleFooter.Render("ctrl+d=submit  esc=cancel  enter=new line")
-		taBox := lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#00BFFF")).
-			Width(width - 2).
-			Render(m.input.View())
-		return keys + "\n" + taBox
+		return m.renderCommentInputFooter(width)
+	}
+	keys := m.renderReadyKeys()
+	if statusBar != "" {
+		return keys + "\n" + statusBar
+	}
+	return keys
+}
+
+func (m DetailModel) renderMergeConfirmFooter(width int) string {
+	return renderConfirmBox(width,
+		StyleStatusBarOK.Render("Merge PR #"+fmt.Sprint(m.pr.Number)+"?")+"\n\n"+
+			StyleHelpKey.Render("s / enter")+StyleHelpDesc.Render("Squash and merge (recommended)")+"\n"+
+			StyleHelpKey.Render("m        ")+StyleHelpDesc.Render("Merge commit")+"\n"+
+			StyleHelpKey.Render("r        ")+StyleHelpDesc.Render("Rebase and merge")+"\n"+
+			StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
+	)
+}
+
+func (m DetailModel) renderApproveConfirmFooter(width int) string {
+	pending := ""
+	if len(m.pendingComments) > 0 {
+		pending = fmt.Sprintf("  (%d inline comment(s) will be included)", len(m.pendingComments))
+	}
+	return renderConfirmBox(width,
+		StyleStatusBarOK.Render("Approve PR #"+fmt.Sprint(m.pr.Number)+"?")+pending+"\n\n"+
+			StyleHelpKey.Render("y / enter")+StyleHelpDesc.Render("Approve now")+"\n"+
+			StyleHelpKey.Render("c        ")+StyleHelpDesc.Render("Approve with a comment")+"\n"+
+			StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
+	)
+}
+
+func (m DetailModel) renderCommentInputFooter(width int) string {
+	pos := ""
+	if m.pending == actionInlineComment && m.lineCursor < len(m.diffLines) {
+		pos = StyleHelpKey.Render(diff.FormatPosition(m.diffLines[m.lineCursor])) + "  "
+	}
+	keys := pos + StyleFooter.Render("ctrl+d=submit  esc=cancel  enter=new line")
+	taBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#00BFFF")).
+		Width(width - borderWidthOffset).
+		Render(m.input.View())
+	return keys + "\n" + taBox
+}
+
+func (m DetailModel) renderReadyKeys() string {
+	switch m.state {
 	case detailStateLineSelect:
-		keys = StyleFooter.Render("j/k=move  n/enter=comment here  esc=exit line mode")
+		return StyleFooter.Render("j/k=move  n/enter=comment here  esc=exit line mode")
 	case detailStateSubmitting:
-		keys = StyleFooter.Render(m.spinner.View() + " Submitting…  esc=cancel")
+		return StyleFooter.Render(m.spinner.View() + " Submitting…  esc=cancel")
 	default:
 		viewLabel := "[unified]"
 		if m.diffView == viewSplit {
 			viewLabel = "[split]"
 		}
-		keys = StyleFooter.Render(fmt.Sprintf(
+		return StyleFooter.Render(fmt.Sprintf(
 			"1/2/3=tab  s=%s  n=inline  a=approve  m=merge  r=changes  c=comment  w=web  b=back  ?=help  q=quit",
 			viewLabel,
 		))
 	}
-	sb := ""
-	if statusBar != "" {
-		sb = "\n" + statusBar
-	}
-	_ = width
-	return keys + sb
 }
 
 // Commands
