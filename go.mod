@@ -3,7 +3,7 @@ module github.com/roramirez/anprr
 go 1.19
 
 require (
-	github.com/BurntSushi/toml v1.3.2
+	github.com/BurntSushi/toml v1.6.0
 	github.com/alecthomas/chroma/v2 v2.13.0
 	github.com/charmbracelet/bubbles v0.16.1
 	github.com/charmbracelet/bubbletea v0.24.2
