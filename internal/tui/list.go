@@ -82,22 +82,24 @@ func (m ListModel) setCurrentUser(login string) ListModel {
 func (m ListModel) visiblePRs() []github.PR {
 	var result []github.PR
 	for _, pr := range m.allPRs {
-		switch m.tab {
-		case tabMyPRs:
-			if pr.Author.Login == m.currentUser {
-				result = append(result, pr)
-			}
-		case tabAllOpen:
-			if pr.Author.Login != m.currentUser {
-				result = append(result, pr)
-			}
-		case tabNeedsReview:
-			if m.needsMyReview(pr) {
-				result = append(result, pr)
-			}
+		if m.prMatchesTab(pr) {
+			result = append(result, pr)
 		}
 	}
 	return result
+}
+
+func (m ListModel) prMatchesTab(pr github.PR) bool {
+	switch m.tab {
+	case tabMyPRs:
+		return pr.Author.Login == m.currentUser
+	case tabAllOpen:
+		return pr.Author.Login != m.currentUser
+	case tabNeedsReview:
+		return m.needsMyReview(pr)
+	default:
+		return false
+	}
 }
 
 func (m ListModel) needsMyReview(pr github.PR) bool {
@@ -174,57 +176,64 @@ func (m ListModel) update(msg tea.Msg, client *github.Client, cache *github.Cach
 	return m, nil
 }
 
-func (m ListModel) handleKey(msg tea.KeyMsg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) { //nolint:gocognit,cyclop
+func (m ListModel) handleKey(msg tea.KeyMsg, client *github.Client, cache *github.Cache, repos []string) (ListModel, tea.Cmd) {
 	prs := m.visiblePRs()
-	switch {
-	case msg.String() == "1":
-		m.tab = tabMyPRs
-		m.cursor = 0
-	case msg.String() == "2":
-		m.tab = tabNeedsReview
-		m.cursor = 0
-	case msg.String() == "3":
-		m.tab = tabAllOpen
-		m.cursor = 0
-	case msg.String() == "j" || msg.String() == "down":
+	switch msg.String() {
+	case "1":
+		m.tab, m.cursor = tabMyPRs, 0
+	case "2":
+		m.tab, m.cursor = tabNeedsReview, 0
+	case "3":
+		m.tab, m.cursor = tabAllOpen, 0
+	case "j", "down":
 		if m.cursor < len(prs)-1 {
 			m.cursor++
 		}
-	case msg.String() == "k" || msg.String() == "up":
+	case "k", "up":
 		if m.cursor > 0 {
 			m.cursor--
 		}
-	case msg.String() == keyEnter:
+	case keyEnter:
 		if pr, ok := m.selectedPR(); ok {
 			return m, navigateToDetail(pr, false)
 		}
-	case msg.String() == "a":
-		if pr, ok := m.selectedPR(); ok {
-			if pr.IsDraft {
-				return m, statusCmd("Cannot approve a draft PR", true)
-			}
-			return m, submitReviewCmd(client, pr, github.ReviewApprove, "", nil)
-		}
-	case msg.String() == "r", msg.String() == "c":
+	case "a":
+		return m, m.handleApproveKey(client)
+	case "r", "c":
 		if pr, ok := m.selectedPR(); ok {
 			return m, navigateToDetail(pr, true)
 		}
-	case msg.String() == "f":
+	case "f":
 		cache.Invalidate()
 		m.state = listStateLoading
 		return m, tea.Batch(fetchPRsCmd(client, cache, repos), searchReviewRequestedCmd(client, cache, repos))
-	case msg.String() == "F":
-		var cmds []tea.Cmd
-		for repo, hasNext := range m.hasNextPage {
-			if hasNext {
-				cmds = append(cmds, loadMoreCmd(client, cache, repo, m.endCursor[repo]))
-			}
-		}
-		return m, tea.Batch(cmds...)
-	case msg.String() == "q":
+	case "F":
+		return m, m.handleLoadMoreKey(client, cache)
+	case "q":
 		return m, tea.Quit
 	}
 	return m, nil
+}
+
+func (m ListModel) handleApproveKey(client *github.Client) tea.Cmd {
+	pr, ok := m.selectedPR()
+	if !ok {
+		return nil
+	}
+	if pr.IsDraft {
+		return statusCmd("Cannot approve a draft PR", true)
+	}
+	return submitReviewCmd(client, pr, github.ReviewApprove, "", nil)
+}
+
+func (m ListModel) handleLoadMoreKey(client *github.Client, cache *github.Cache) tea.Cmd {
+	var cmds []tea.Cmd
+	for repo, hasNext := range m.hasNextPage {
+		if hasNext {
+			cmds = append(cmds, loadMoreCmd(client, cache, repo, m.endCursor[repo]))
+		}
+	}
+	return tea.Batch(cmds...)
 }
 
 func updateListModel(m ListModel, msg PRsLoadedMsg) (ListModel, []tea.Cmd) {
