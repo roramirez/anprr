@@ -44,5 +44,5 @@ issues:
   max-same-issues: 10
 
 run:
-  go: "1.19"
+  go: "1.25"
   timeout: 5m
