@@ -23,6 +23,8 @@ type listState int
 const (
 	listStateLoading listState = iota
 	listStateReady
+
+	colSep = 2 // "  " separator between PR row columns
 )
 
 type tabIndex int
@@ -412,7 +414,7 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 	checkIcon := renderCheckIcon(pr.CheckState)
 
 	// fixed chars: cursor(2) + sep(2) + sep(2) + repo + sep(2) + age + sep(2) + dot(1) + sep(2) + icon(1)
-	fixedW := 2 + len(numberStr) + 2 + 2 + len(repoStr) + 2 + len(ageStr) + 2 + 1 + 2 + 1
+	fixedW := colSep + len(numberStr) + colSep + colSep + len(repoStr) + colSep + len(ageStr) + colSep + 1 + colSep + 1
 	titleW := width - fixedW
 	if titleW < 10 {
 		titleW = 10
@@ -438,7 +440,6 @@ func (m ListModel) renderFooter(width int, statusBar string) string {
 	if statusBar != "" {
 		sb = "\n" + statusBar
 	}
-	_ = width
 	return keys + sb
 }
 
