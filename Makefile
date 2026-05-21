@@ -33,7 +33,7 @@ verify:
 	go mod verify
 
 vuln:
-	govulncheck ./...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 check: fmt vet verify test
 
