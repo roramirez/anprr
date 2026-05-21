@@ -13,6 +13,8 @@ import (
 	"github.com/roramirez/anprr/internal/tui"
 )
 
+var version = "dev"
+
 const usage = `anprr — GitHub PR review TUI
 
 Usage:
@@ -21,6 +23,7 @@ Usage:
   anprr repos list                     List tracked repos
   anprr repos add <owner/repo>         Add a repo
   anprr repos remove <owner/repo>      Remove a repo
+  anprr version                        Show version
   anprr help                           Show this help
 
 Flags:
@@ -36,6 +39,9 @@ Config file: ~/.config/anprr/config.toml
 func main() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
+		case "version", "--version", "-v":
+			fmt.Println(version)
+			os.Exit(0)
 		case "help", "--help", "-h":
 			fmt.Print(usage)
 			os.Exit(0)
