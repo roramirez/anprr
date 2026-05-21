@@ -58,40 +58,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	var (
-		client   *github.Client
-		cache    *github.Cache
-		repos    []string
-		syntaxHL bool
-	)
-
-	if *flagDemo {
-		client = github.NewClient("demo-token", demo.Transport{})
-		cache = github.NewCache()
-		repos = []string{"acme/backend"}
-		syntaxHL = true
-	} else {
-		cfgPath := config.DefaultConfigPath()
-		cfg, err := config.Load(cfgPath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-		token := config.ResolveToken(*flagToken, cfg)
-		if token == "" {
-			fmt.Fprintln(os.Stderr, "No token configured. Run: anprr login --token <token>")
-			os.Exit(1)
-		}
-		if len(cfg.Repos) == 0 {
-			fmt.Fprintln(os.Stderr, "No repositories configured. Run: anprr repos add <owner/repo>")
-			os.Exit(1)
-		}
-		client = github.NewClient(token, nil)
-		cache = github.NewCache()
-		repos = cfg.Repos
-		// syntax highlighting is ON by default; --no-syntax or config no-syntax = true disables it
-		syntaxHL = !cfg.NoSyntax && !*flagNoSyntax
-	}
+	client, cache, repos, syntaxHL := mustResolveApp(*flagDemo, *flagToken, *flagNoSyntax)
 
 	app := tui.NewApp(client, cache, repos, syntaxHL)
 
@@ -185,6 +152,28 @@ func cmdReposAdd(args []string, cfgPath string, cfg *config.Config) {
 		os.Exit(1)
 	}
 	fmt.Printf("Added %s.\n", repo)
+}
+
+func mustResolveApp(isDemo bool, flagToken string, flagNoSyntax bool) (*github.Client, *github.Cache, []string, bool) {
+	if isDemo {
+		return github.NewClient("demo-token", demo.Transport{}), github.NewCache(), []string{"acme/backend"}, true
+	}
+	cfgPath := config.DefaultConfigPath()
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+	token := config.ResolveToken(flagToken, cfg)
+	if token == "" {
+		fmt.Fprintln(os.Stderr, "No token configured. Run: anprr login --token <token>")
+		os.Exit(1)
+	}
+	if len(cfg.Repos) == 0 {
+		fmt.Fprintln(os.Stderr, "No repositories configured. Run: anprr repos add <owner/repo>")
+		os.Exit(1)
+	}
+	return github.NewClient(token, nil), github.NewCache(), cfg.Repos, !cfg.NoSyntax && !flagNoSyntax
 }
 
 func cmdReposRemove(args []string, cfgPath string, cfg *config.Config) {

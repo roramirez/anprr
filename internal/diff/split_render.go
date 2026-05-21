@@ -36,16 +36,7 @@ func RenderSplit(lines []DiffLine, width int, hl Highlighter, cursor int, commen
 	var sb strings.Builder
 	for _, row := range rows {
 		if row.IsHeader {
-			mark := "  "
-			line := row.Header
-			var rendered string
-			switch line.Type {
-			case DiffHunkHeader:
-				rendered = styleHunkHeader.Render(padRight(line.Text, width-2))
-			default:
-				rendered = styleFileHeader.Render(padRight(line.Text, width-2))
-			}
-			sb.WriteString(mark + rendered + "\n")
+			sb.WriteString(renderSplitHeaderRow(row.Header, width))
 			continue
 		}
 
@@ -67,6 +58,15 @@ func RenderSplit(lines []DiffLine, width int, hl Highlighter, cursor int, commen
 		sb.WriteString(leftMark + leftCell + sep + rightMark + rightCell + "\n")
 	}
 	return sb.String()
+}
+
+func renderSplitHeaderRow(line *DiffLine, width int) string {
+	switch line.Type {
+	case DiffHunkHeader:
+		return "  " + styleHunkHeader.Render(padRight(line.Text, width-2)) + "\n"
+	default:
+		return "  " + styleFileHeader.Render(padRight(line.Text, width-2)) + "\n"
+	}
 }
 
 func renderSplitCell(

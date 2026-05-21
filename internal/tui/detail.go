@@ -54,11 +54,13 @@ const (
 )
 
 const (
-	textareaHeight    = 5 // visible lines in the comment box
-	textareaCharLimit = 65536
-	inputWidthOffset  = 4 // border + padding consumed by the textarea box
-	borderWidthOffset = 2 // gutter/border consumed by the viewport and header
-	vpHeightOffset    = 5 // rows consumed by header, tabs, and footer
+	textareaHeight     = 5 // visible lines in the comment box
+	textareaCharLimit  = 65536
+	inputWidthOffset   = 4 // border + padding consumed by the textarea box
+	borderWidthOffset  = 2 // gutter/border consumed by the viewport and header
+	vpHeightOffset     = 5 // rows consumed by header, tabs, and footer
+	textareaBorderRows = 2 // top + bottom border of the textarea box
+	confirmBoxRows     = 7 // height of the approve/merge confirm prompt box
 )
 
 type DetailModel struct {
@@ -413,6 +415,16 @@ func (m DetailModel) handleCommentCancel() DetailModel {
 	return m
 }
 
+func footerExtraHeight(state detailState) int {
+	switch state {
+	case detailStateCommentInput:
+		return textareaHeight + textareaBorderRows
+	case detailStateApproveConfirm, detailStateMergeConfirm:
+		return confirmBoxRows
+	}
+	return 0
+}
+
 func updateDetailDiff(m DetailModel, msg DiffLoadedMsg, syntaxHL bool) (DetailModel, tea.Cmd) {
 	if msg.Err != nil {
 		m.err = msg.Err
@@ -541,14 +553,7 @@ func (m DetailModel) view(width, height int, statusBar string) string {
 	tabs := m.renderTabs()
 	footer := m.renderFooter(width, statusBar)
 	headerH := lipgloss.Height(header) + lipgloss.Height(tabs)
-	footerH := lipgloss.Height(footer)
-	// reserve extra space for the textarea box or confirm prompts
-	switch m.state {
-	case detailStateCommentInput:
-		footerH += textareaHeight + 2 // +2 for border
-	case detailStateApproveConfirm, detailStateMergeConfirm:
-		footerH += 7 // prompt box height
-	}
+	footerH := lipgloss.Height(footer) + footerExtraHeight(m.state)
 	bodyH := height - headerH - footerH
 	if bodyH < 1 {
 		bodyH = 1
@@ -677,11 +682,7 @@ func (m DetailModel) renderCommentInputFooter(width int) string {
 		pos = StyleHelpKey.Render(diff.FormatPosition(m.diffLines[m.lineCursor])) + "  "
 	}
 	keys := pos + StyleFooter.Render("ctrl+d=submit  esc=cancel  enter=new line")
-	taBox := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#00BFFF")).
-		Width(width - borderWidthOffset).
-		Render(m.input.View())
+	taBox := StyleTextareaBox.Width(width - borderWidthOffset).Render(m.input.View())
 	return keys + "\n" + taBox
 }
 

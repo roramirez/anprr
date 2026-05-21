@@ -120,15 +120,21 @@ func splitAtNewlines(text, color string, current []Token, result [][]Token) ([]T
 	}
 }
 
+const (
+	colorAddedFg   = "#00FF7F"
+	colorAddedBg   = "#003D00"
+	colorRemovedBg = "#3D0000"
+)
+
 // lipgloss styles for each diff line type
 var (
 	styleAdded = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#00FF7F")).
-			Background(lipgloss.Color("#003D00"))
+			Foreground(lipgloss.Color(colorAddedFg)).
+			Background(lipgloss.Color(colorAddedBg))
 
 	styleRemoved = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF6B6B")).
-			Background(lipgloss.Color("#3D0000"))
+			Background(lipgloss.Color(colorRemovedBg))
 
 	styleHunkHeader = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#00BFFF")).
@@ -142,8 +148,8 @@ var (
 			Foreground(lipgloss.Color("#888888"))
 
 	// Brighter prefix gutter colors
-	styleAddedPrefix   = lipgloss.NewStyle().Foreground(lipgloss.Color("#00FF7F")).Background(lipgloss.Color("#003D00")).Bold(true)
-	styleRemovedPrefix = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4444")).Background(lipgloss.Color("#3D0000")).Bold(true)
+	styleAddedPrefix   = lipgloss.NewStyle().Foreground(lipgloss.Color(colorAddedFg)).Background(lipgloss.Color(colorAddedBg)).Bold(true)
+	styleRemovedPrefix = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF4444")).Background(lipgloss.Color(colorRemovedBg)).Bold(true)
 
 	// Cursor highlight — applied on top of the line's own color
 	styleCursor = lipgloss.NewStyle().
