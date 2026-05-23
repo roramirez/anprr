@@ -29,10 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Draft PR detection** — drafts shown dimmed with `[draft]` prefix; approve blocked
 - **Demo mode** — `./anprr --demo` runs with mock data, no token required
 - **Config subcommands** — `anprr login`, `anprr repos add/remove/list`
-- **CI** — GitHub Actions workflow: `gofmt`, `go vet`, `go test -race`, binary build
-- **Dependabot** — weekly updates for Go modules and GitHub Actions
-
-- **GraphQL aliases** — numeric identifiers (`r0`, `r1`, …) support repos with hyphens, dots, and other special characters
-- **Syntax highlight color fix** — correct `#rrggbb` format for chroma v2 token colors
+- **CI checks** — CI status shown in PR list and detail screen with pass/fail/pending indicators
+- **PR description and comments tabs** — detail screen has tabs for Diff, Description, and Comments
+- **`--version` flag** — prints the current version and exits
+- **Makefile** — `make build`, `make test`, `make lint`; `make help` is the default target
 
 [Unreleased]: https://github.com/roramirez/anprr/compare/main...HEAD
