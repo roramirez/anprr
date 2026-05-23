@@ -454,6 +454,33 @@ func TestListModel_reReviewAppearsInTab3(t *testing.T) {
 	}
 }
 
+func TestPrTitleAndStyle_conflict(t *testing.T) {
+	pr := github.PR{Title: "fix auth", Mergeable: "CONFLICTING"}
+	title, _ := prTitleAndStyle(pr)
+	if !strings.Contains(title, "[conflict]") {
+		t.Errorf("expected [conflict] prefix, got %q", title)
+	}
+	if !strings.Contains(title, "fix auth") {
+		t.Errorf("expected original title in output, got %q", title)
+	}
+}
+
+func TestPrTitleAndStyle_draft(t *testing.T) {
+	pr := github.PR{Title: "wip", IsDraft: true}
+	title, _ := prTitleAndStyle(pr)
+	if !strings.Contains(title, "[draft]") {
+		t.Errorf("expected [draft] prefix, got %q", title)
+	}
+}
+
+func TestPrTitleAndStyle_normal(t *testing.T) {
+	pr := github.PR{Title: "add tests", Mergeable: "MERGEABLE"}
+	title, _ := prTitleAndStyle(pr)
+	if strings.Contains(title, "[") {
+		t.Errorf("expected no prefix for normal PR, got %q", title)
+	}
+}
+
 func TestListModel_draftCannotApprove(t *testing.T) {
 	m := newListModel()
 	m.state = listStateReady
