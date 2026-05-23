@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-23
+
 ### Added
 
 - **3-tab PR list** — `[1] My PRs`, `[2] Needs Review`, `[3] All Open`
@@ -34,4 +36,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`--version` flag** — prints the current version and exits
 - **Makefile** — `make build`, `make test`, `make lint`; `make help` is the default target
 
-[Unreleased]: https://github.com/roramirez/anprr/compare/main...HEAD
+[Unreleased]: https://github.com/roramirez/anprr/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/roramirez/anprr/releases/tag/v0.1.0
