@@ -171,7 +171,7 @@ Triggered by `?` on any screen. Rendered as a centered box over the current scre
 ```
 ┌─ Key Bindings ───────────────────────────────────────┐
 │                                                      │
-│  1 / 2       Switch tab (list screen)                │
+│  1 / 2 / 3   Switch tab (list screen)                │
 │  j / ↓       Move down / scroll down                 │
 │  k / ↑       Move up / scroll up                     │
 │  pgdn/pgup   Page scroll (detail screen)             │

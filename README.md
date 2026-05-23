@@ -32,12 +32,21 @@ A terminal UI for reviewing GitHub pull requests — without leaving the termina
 - **Approve confirmation** — `a` shows a prompt: approve now or add a comment first
 - **Merge from TUI** — `m` selects squash / merge commit / rebase without leaving the terminal
 - **Multi-line comment box** — `r` / `c` open a resizable textarea (`ctrl+d` to submit, `enter` for new line)
+- **CI check status** — pass/fail/pending indicators in PR list and detail screen
+- **PR description and comments tabs** — detail screen has tabs for Diff, Description, and Comments
+- **Demo mode** — `./anprr --demo` runs with mock data, no token required
 - **Direct GitHub API** — no dependency on `gh` CLI
 
 ## Install
 
 ```bash
 go install github.com/roramirez/anprr@latest
+```
+
+Check the installed version:
+
+```bash
+anprr --version
 ```
 
 Or build from source:
@@ -130,5 +139,5 @@ Inline comments accumulate and are sent together when you approve or request cha
 
 ## Requirements
 
-- Go 1.19+
+- Go 1.25
 - GitHub Personal Access Token with `repo` and `read:user` scopes
