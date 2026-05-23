@@ -394,6 +394,47 @@ func TestDetailModel_tab3EmptyComments(t *testing.T) {
 
 // handleMergeConfirm
 
+func TestDetailModel_mergeBlockedOnConflict(t *testing.T) {
+	m := loadedDetail()
+	m.pr = github.PR{Mergeable: "CONFLICTING", Repo: "org/repo"}
+	_, cmd := m.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("m")}, nil, nil)
+	if cmd == nil {
+		t.Fatal("expected a status error command for conflicting PR")
+	}
+	msg, ok := cmd().(StatusMsg)
+	if !ok || !msg.IsError {
+		t.Error("expected error StatusMsg when merging a conflicting PR")
+	}
+}
+
+func TestDetailModel_renderHeader_conflictLabel(t *testing.T) {
+	m := loadedDetail()
+	m.pr = github.PR{
+		Number:    42,
+		Title:     "fix auth",
+		Repo:      "org/repo",
+		Mergeable: "CONFLICTING",
+	}
+	header := m.renderHeader(120)
+	if !strings.Contains(header, "conflicts") {
+		t.Errorf("expected 'conflicts' in header for CONFLICTING PR, got: %q", header)
+	}
+}
+
+func TestDetailModel_renderHeader_noConflictLabel(t *testing.T) {
+	m := loadedDetail()
+	m.pr = github.PR{
+		Number:    1,
+		Title:     "add feature",
+		Repo:      "org/repo",
+		Mergeable: "MERGEABLE",
+	}
+	header := m.renderHeader(120)
+	if strings.Contains(header, "conflicts") {
+		t.Errorf("expected no 'conflicts' label for MERGEABLE PR, got: %q", header)
+	}
+}
+
 func TestDetailModel_mergeConfirm_squash(t *testing.T) {
 	m := loadedDetail()
 	m.state = detailStateMergeConfirm

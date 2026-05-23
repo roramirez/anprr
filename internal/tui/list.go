@@ -391,6 +391,8 @@ func prTitleAndStyle(pr github.PR) (string, lipgloss.Style) {
 		return "[draft] " + pr.Title, StylePRTitleDraft
 	case pr.Author.IsBot:
 		return "[bot] " + pr.Title, StylePRTitleDraft
+	case pr.Mergeable == "CONFLICTING":
+		return "[conflict] " + pr.Title, StyleStatusConflict
 	default:
 		return pr.Title, StylePRTitle
 	}

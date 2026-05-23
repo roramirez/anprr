@@ -602,6 +602,9 @@ func (m DetailModel) renderHeader(width int) string {
 	checkLabel := renderCheckLabel(m.pr.CheckState)
 	meta := fmt.Sprintf("author: %s  base: %s  +%d -%d",
 		m.pr.Author.Login, m.pr.BaseRef, m.pr.Additions, m.pr.Deletions)
+	if m.pr.Mergeable == "CONFLICTING" {
+		meta += "  " + StyleStatusConflict.Render("⚠ conflicts")
+	}
 	if checkLabel != "" {
 		meta += "  " + checkLabel
 	}
