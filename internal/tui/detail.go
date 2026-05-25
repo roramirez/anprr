@@ -600,8 +600,8 @@ func (m DetailModel) renderHeader(width int) string {
 		pending = StyleStatusBarWarn.Render(fmt.Sprintf("  [%d comment(s) pending]", len(m.pendingComments)))
 	}
 	checkLabel := renderCheckLabel(m.pr.CheckState)
-	meta := fmt.Sprintf("author: %s  base: %s  +%d -%d",
-		m.pr.Author.Login, m.pr.BaseRef, m.pr.Additions, m.pr.Deletions)
+	meta := fmt.Sprintf("author: %s  %s → %s  +%d -%d",
+		m.pr.Author.Login, m.pr.HeadRef, m.pr.BaseRef, m.pr.Additions, m.pr.Deletions)
 	if m.pr.Mergeable == "CONFLICTING" {
 		meta += "  " + StyleStatusConflict.Render("⚠ conflicts")
 	}
