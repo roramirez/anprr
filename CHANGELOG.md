@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `anprr repos add` now returns an error and exits non-zero when the repository is already present in the config (or in the target scope)
+
 ### Added
 
 - **Scopes** — named profiles in config (`[scopes.work]`, `[scopes.personal]`) each with their own `token` and `repos`; select with `--scope <name>` on any command
