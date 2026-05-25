@@ -421,6 +421,27 @@ func TestDetailModel_renderHeader_conflictLabel(t *testing.T) {
 	}
 }
 
+func TestDetailModel_renderHeader_showsHeadAndBaseRef(t *testing.T) {
+	m := loadedDetail()
+	m.pr = github.PR{
+		Number:  7,
+		Title:   "add login",
+		Repo:    "org/repo",
+		HeadRef: "feat/login",
+		BaseRef: "main",
+	}
+	header := m.renderHeader(120)
+	if !strings.Contains(header, "feat/login") {
+		t.Errorf("expected HeadRef in header, got: %q", header)
+	}
+	if !strings.Contains(header, "main") {
+		t.Errorf("expected BaseRef in header, got: %q", header)
+	}
+	if !strings.Contains(header, "→") {
+		t.Errorf("expected arrow separator in header, got: %q", header)
+	}
+}
+
 func TestDetailModel_renderHeader_noConflictLabel(t *testing.T) {
 	m := loadedDetail()
 	m.pr = github.PR{
