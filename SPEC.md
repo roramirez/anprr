@@ -28,8 +28,21 @@ Removes all occurrences of `owner/repo` from the repos list.
 ### `anprr repos list`
 Prints each configured repo on its own line. Prints `"(none)"` if the list is empty.
 
+### `anprr scopes list`
+Prints each configured scope name on its own line. Prints `"(none)"` if no scopes are defined.
+
 ### `anprr help` / `anprr --help` / `anprr -h`
 Prints command usage and exits 0.
+
+### `--scope <name>` (global flag)
+Selects a named scope for any command. Parsed before subcommand dispatch, so it works in any position:
+```
+anprr --scope work
+anprr --scope work repos add myorg/backend
+anprr --scope work login --token ghp_xxx
+```
+- If the scope does not exist and the command is `repos add` or `login`, it is created automatically.
+- If the scope does not exist and the command is `repos list`, `repos remove`, or TUI launch, it exits with an error.
 
 ---
 
@@ -53,12 +66,31 @@ Error messages:
 Location: `$XDG_CONFIG_HOME/anprr/config.toml` if `XDG_CONFIG_HOME` is set, otherwise `~/.config/anprr/config.toml`.
 
 ```toml
-token  = "ghp_xxxx"
-repos  = ["myorg/backend", "myorg/frontend"]
-no-syntax = false   # set to true to disable syntax highlighting (on by default)
+token = "ghp_xxxx"
+repos = ["myorg/backend", "myorg/frontend"]
+no-syntax = false
+
+[scopes.work]
+token = "ghp_work_token"
+repos = ["myorg/backend", "myorg/frontend"]
+
+[scopes.personal]
+token = "ghp_personal_token"
+repos = ["me/side-project"]
 ```
 
 All fields are optional — missing fields use zero values. The file and its parent directory are created on first `anprr login` call.
+
+Zero-value fields (`token = ""`, `no-syntax = false`, `repos = []`) are omitted when saving to keep the file readable.
+
+### Scope resolution
+
+When `--scope <name>` is given:
+1. The named scope's `token` is used; if empty, falls back to the root `token`.
+2. The named scope's `repos` is used; if empty, falls back to the root `repos`.
+3. `no-syntax` is taken from the scope directly (no fallback).
+
+Token priority within a scope: `--token` flag > `GITHUB_TOKEN` env > scope `token` > root `token`.
 
 ---
 

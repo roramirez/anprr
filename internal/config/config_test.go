@@ -59,23 +59,84 @@ func TestSave_roundtrip(t *testing.T) {
 }
 
 func TestResolveToken(t *testing.T) {
-	cfg := &Config{Token: "file_token"}
-
 	// flag wins
-	if got := ResolveToken("flag_token", cfg); got != "flag_token" {
+	if got := ResolveToken("flag_token", "file_token"); got != "flag_token" {
 		t.Errorf("flag: got %q", got)
 	}
 
 	// env wins over file
 	t.Setenv("GITHUB_TOKEN", "env_token")
-	if got := ResolveToken("", cfg); got != "env_token" {
+	if got := ResolveToken("", "file_token"); got != "env_token" {
 		t.Errorf("env: got %q", got)
 	}
 
 	// file fallback
 	t.Setenv("GITHUB_TOKEN", "")
-	if got := ResolveToken("", cfg); got != "file_token" {
+	if got := ResolveToken("", "file_token"); got != "file_token" {
 		t.Errorf("file: got %q", got)
+	}
+}
+
+func TestResolveScope_noScope(t *testing.T) {
+	cfg := &Config{Token: "tok", Repos: []string{"a/b"}, NoSyntax: true}
+	s, err := ResolveScope(cfg, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Token != "tok" || len(s.Repos) != 1 || !s.NoSyntax {
+		t.Errorf("got %+v", s)
+	}
+}
+
+func TestResolveScope_named(t *testing.T) {
+	cfg := &Config{
+		Token: "base_tok",
+		Repos: []string{"base/repo"},
+		Scopes: map[string]Scope{
+			"work": {Token: "work_tok", Repos: []string{"org/backend"}},
+		},
+	}
+	s, err := ResolveScope(cfg, "work")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Token != "work_tok" || len(s.Repos) != 1 || s.Repos[0] != "org/backend" {
+		t.Errorf("got %+v", s)
+	}
+}
+
+func TestResolveScope_inheritsBaseToken(t *testing.T) {
+	cfg := &Config{
+		Token: "base_tok",
+		Scopes: map[string]Scope{
+			"personal": {Repos: []string{"me/proj"}},
+		},
+	}
+	s, err := ResolveScope(cfg, "personal")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Token != "base_tok" {
+		t.Errorf("expected base_tok, got %q", s.Token)
+	}
+}
+
+func TestResolveScope_notFound(t *testing.T) {
+	cfg := &Config{}
+	_, err := ResolveScope(cfg, "missing")
+	if err == nil {
+		t.Error("expected error for unknown scope")
+	}
+}
+
+func TestSetScope(t *testing.T) {
+	cfg := &Config{}
+	SetScope(cfg, "work", Scope{Token: "tok", Repos: []string{"org/repo"}})
+	if len(cfg.Scopes) != 1 {
+		t.Fatalf("expected 1 scope, got %d", len(cfg.Scopes))
+	}
+	if cfg.Scopes["work"].Token != "tok" {
+		t.Errorf("unexpected scope token: %v", cfg.Scopes["work"].Token)
 	}
 }
 

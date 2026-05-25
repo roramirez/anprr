@@ -74,14 +74,43 @@ anprr
 
 Token priority: `--token` flag > `GITHUB_TOKEN` env > `~/.config/anprr/config.toml`
 
+### Scopes
+
+Use scopes to switch between separate contexts (e.g. work and personal) without touching the config file:
+
+```bash
+# Set up a scope
+anprr --scope work login --token ghp_work_token
+anprr --scope work repos add myorg/backend
+
+anprr --scope personal login --token ghp_personal_token
+anprr --scope personal repos add me/side-project
+
+# Launch with a scope
+anprr --scope work
+anprr --scope personal
+
+# List configured scopes
+anprr scopes list
+```
+
+Each scope stores its own `token` and `repos`. If a scope has no token, it falls back to the root `token` in config.
+
 ### Config file
 
 `~/.config/anprr/config.toml`
 
 ```toml
-token  = "ghp_xxxx"
-repos  = ["myorg/backend", "myorg/frontend"]
-no-syntax = false   # set to true to disable syntax highlighting
+token = "ghp_xxxx"
+repos = ["myorg/backend", "myorg/frontend"]
+
+[scopes.work]
+token = "ghp_work_token"
+repos = ["myorg/backend", "myorg/frontend"]
+
+[scopes.personal]
+token = "ghp_personal_token"
+repos = ["me/side-project"]
 ```
 
 ## Key bindings
