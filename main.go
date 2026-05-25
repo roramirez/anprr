@@ -191,9 +191,21 @@ func cmdReposAdd(args []string, cfgPath string, cfg *config.Config, scope string
 	}
 	if scope != "" {
 		s := cfg.Scopes[scope]
+		for _, r := range s.Repos {
+			if r == repo {
+				fmt.Fprintf(os.Stderr, "error: %s is already in scope %q\n", repo, scope)
+				os.Exit(1)
+			}
+		}
 		s.Repos = append(s.Repos, repo)
 		config.SetScope(cfg, scope, s)
 	} else {
+		for _, r := range cfg.Repos {
+			if r == repo {
+				fmt.Fprintf(os.Stderr, "error: %s is already added\n", repo)
+				os.Exit(1)
+			}
+		}
 		cfg.Repos = append(cfg.Repos, repo)
 	}
 	if err := config.Save(cfgPath, cfg); err != nil {
