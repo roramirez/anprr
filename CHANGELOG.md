@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Scopes** — named profiles in config (`[scopes.work]`, `[scopes.personal]`) each with their own `token` and `repos`; select with `--scope <name>` on any command
 - `anprr scopes list` — lists all configured scopes
 
+### Fixed
+
+- **Spinner stuck after submit** — "Submitting…" footer no longer stays visible after a successful review approval or comment post; detail view correctly returns to ready state
+
 ## [0.1.0] - 2026-05-23
 
 ### Added
