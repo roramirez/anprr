@@ -169,6 +169,7 @@ func (m AppModel) handleReviewDone(msg ReviewDoneMsg) (tea.Model, tea.Cmd) {
 		m.detail = m.detail.resetToReady()
 		return m, tea.Batch(statusCmd(msg.Err.Error(), true), refresh)
 	}
+	m.detail = m.detail.resetToReady()
 	return m, tea.Batch(statusCmd("✓ Review submitted", false), refresh)
 }
 
@@ -177,6 +178,7 @@ func (m AppModel) handleCommentDone(msg CommentDoneMsg) (tea.Model, tea.Cmd) {
 		m.detail = m.detail.resetToReady()
 		return m, statusCmd(msg.Err.Error(), true)
 	}
+	m.detail = m.detail.resetToReady()
 	return m, statusCmd("✓ Comment posted", false)
 }
 
