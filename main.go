@@ -179,6 +179,25 @@ func cmdReposList(cfg *config.Config, scope string) {
 	}
 }
 
+func sliceContains(repos []string, repo string) bool {
+	for _, r := range repos {
+		if r == repo {
+			return true
+		}
+	}
+	return false
+}
+
+func removeFromSlice(repos []string, repo string) ([]string, bool) {
+	var kept []string
+	for _, r := range repos {
+		if !strings.EqualFold(r, repo) {
+			kept = append(kept, r)
+		}
+	}
+	return kept, len(kept) < len(repos)
+}
+
 func cmdReposAdd(args []string, cfgPath string, cfg *config.Config, scope string) {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: anprr repos add [--scope <name>] <owner/repo>")
@@ -191,20 +210,16 @@ func cmdReposAdd(args []string, cfgPath string, cfg *config.Config, scope string
 	}
 	if scope != "" {
 		s := cfg.Scopes[scope]
-		for _, r := range s.Repos {
-			if r == repo {
-				fmt.Fprintf(os.Stderr, "error: %s is already in scope %q\n", repo, scope)
-				os.Exit(1)
-			}
+		if sliceContains(s.Repos, repo) {
+			fmt.Fprintf(os.Stderr, "error: %s is already in scope %q\n", repo, scope)
+			os.Exit(1)
 		}
 		s.Repos = append(s.Repos, repo)
 		config.SetScope(cfg, scope, s)
 	} else {
-		for _, r := range cfg.Repos {
-			if r == repo {
-				fmt.Fprintf(os.Stderr, "error: %s is already added\n", repo)
-				os.Exit(1)
-			}
+		if sliceContains(cfg.Repos, repo) {
+			fmt.Fprintf(os.Stderr, "error: %s is already added\n", repo)
+			os.Exit(1)
 		}
 		cfg.Repos = append(cfg.Repos, repo)
 	}
@@ -255,26 +270,16 @@ func cmdReposRemove(args []string, cfgPath string, cfg *config.Config, scope str
 			fmt.Fprintf(os.Stderr, "scope %q not defined in config\n", scope)
 			os.Exit(1)
 		}
-		var kept []string
-		for _, r := range s.Repos {
-			if !strings.EqualFold(r, repo) {
-				kept = append(kept, r)
-			}
-		}
-		if len(kept) == len(s.Repos) {
+		kept, found := removeFromSlice(s.Repos, repo)
+		if !found {
 			fmt.Printf("%s not found.\n", repo)
 			return
 		}
 		s.Repos = kept
 		config.SetScope(cfg, scope, s)
 	} else {
-		var kept []string
-		for _, r := range cfg.Repos {
-			if !strings.EqualFold(r, repo) {
-				kept = append(kept, r)
-			}
-		}
-		if len(kept) == len(cfg.Repos) {
+		kept, found := removeFromSlice(cfg.Repos, repo)
+		if !found {
 			fmt.Printf("%s not found.\n", repo)
 			return
 		}

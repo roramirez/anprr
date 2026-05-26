@@ -74,6 +74,24 @@ type PR struct {
 	EndCursor   string
 }
 
+// Mergeable values from the GitHub GraphQL API.
+const (
+	MergeableConflicting = "CONFLICTING"
+	MergeableMergeable   = "MERGEABLE"
+	MergeableUnknown     = "UNKNOWN"
+)
+
+// CheckState values from statusCheckRollup in the GitHub GraphQL API.
+const (
+	CheckStateSuccess    = "SUCCESS"
+	CheckStateFailure    = "FAILURE"
+	CheckStateError      = "ERROR"
+	CheckStatePending    = "PENDING"
+	CheckStateInProgress = "IN_PROGRESS"
+	CheckStateQueued     = "QUEUED"
+	CheckStateExpected   = "EXPECTED"
+)
+
 // InlineComment is a pending review comment attached to a specific diff line.
 type InlineComment struct {
 	Path string // file path, e.g. "auth/token.go"

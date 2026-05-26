@@ -24,7 +24,12 @@ const (
 	listStateLoading listState = iota
 	listStateReady
 
-	colSep = 2 // "  " separator between PR row columns
+	colSep    = 2    // "  " separator between PR row columns
+	colSepStr = "  " // string form of colSep, used in row rendering
+
+	prPrefixDraft    = "[draft] "
+	prPrefixBot      = "[bot] "
+	prPrefixConflict = "[conflict] "
 )
 
 type tabIndex int
@@ -128,10 +133,11 @@ func needsReReview(pr github.PR, user string) bool {
 	var myLast *github.Review
 	for i := range pr.Reviews {
 		r := &pr.Reviews[i]
-		if r.Author.Login == user {
-			if myLast == nil || r.SubmittedAt.After(myLast.SubmittedAt) {
-				myLast = r
-			}
+		if r.Author.Login != user {
+			continue
+		}
+		if myLast == nil || r.SubmittedAt.After(myLast.SubmittedAt) {
+			myLast = r
 		}
 	}
 	if myLast == nil {
@@ -388,18 +394,18 @@ func (m ListModel) hasPagination() bool {
 func prTitleAndStyle(pr github.PR) (string, lipgloss.Style) {
 	switch {
 	case pr.IsDraft:
-		return "[draft] " + pr.Title, StylePRTitleDraft
+		return prPrefixDraft + pr.Title, StylePRTitleDraft
 	case pr.Author.IsBot:
-		return "[bot] " + pr.Title, StylePRTitleDraft
-	case pr.Mergeable == "CONFLICTING":
-		return "[conflict] " + pr.Title, StyleStatusConflict
+		return prPrefixBot + pr.Title, StylePRTitleDraft
+	case pr.Mergeable == github.MergeableConflicting:
+		return prPrefixConflict + pr.Title, StyleStatusConflict
 	default:
 		return pr.Title, StylePRTitle
 	}
 }
 
 func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
-	cursor := "  "
+	cursor := colSepStr
 	if selected {
 		cursor = StyleCursor.Render("▶ ")
 	}
@@ -428,11 +434,11 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 	}
 
 	return cursor +
-		StylePRRepo.Render(numberStr) + "  " +
-		titleStyle.Render(title) + "  " +
-		StylePRRepo.Render(repoStr) + "  " +
-		StylePRAge.Render(ageStr) + "  " +
-		dotStyle.Render(dot) + "  " +
+		StylePRRepo.Render(numberStr) + colSepStr +
+		titleStyle.Render(title) + colSepStr +
+		StylePRRepo.Render(repoStr) + colSepStr +
+		StylePRAge.Render(ageStr) + colSepStr +
+		dotStyle.Render(dot) + colSepStr +
 		checkIcon
 }
 
@@ -447,11 +453,11 @@ func (m ListModel) renderFooter(width int, statusBar string) string {
 
 func renderCheckIcon(state string) string {
 	switch state {
-	case "SUCCESS":
+	case github.CheckStateSuccess:
 		return StyleCheckSuccess.Render("✓")
-	case "FAILURE", "ERROR":
+	case github.CheckStateFailure, github.CheckStateError:
 		return StyleCheckFailure.Render("✗")
-	case "PENDING", "IN_PROGRESS", "QUEUED":
+	case github.CheckStatePending, github.CheckStateInProgress, github.CheckStateQueued:
 		return StyleCheckPending.Render("○")
 	default:
 		return StyleCheckNone.Render("—")

@@ -659,3 +659,42 @@ func TestDetailModel_inlineCommentEscStaysInLineSelect(t *testing.T) {
 		t.Error("no comment should be added on esc")
 	}
 }
+
+func TestHelpRow(t *testing.T) {
+	row := helpRow("y / enter", "Approve now")
+	if !strings.Contains(row, "y / enter") {
+		t.Error("expected key label in helpRow output")
+	}
+	if !strings.Contains(row, "Approve now") {
+		t.Error("expected description in helpRow output")
+	}
+	if !strings.HasSuffix(row, "\n") {
+		t.Error("expected helpRow to end with newline")
+	}
+}
+
+func TestRenderConfirmBox(t *testing.T) {
+	out := renderConfirmBox(80, "Are you sure?")
+	if !strings.Contains(out, "Are you sure?") {
+		t.Error("expected content in renderConfirmBox output")
+	}
+}
+
+func TestLineCommentLocation(t *testing.T) {
+	tests := []struct {
+		name string
+		rc   github.LineComment
+		want string
+	}{
+		{"with line number", github.LineComment{Path: "main.go", Line: 42}, "main.go:42"},
+		{"zero line returns path only", github.LineComment{Path: "main.go", Line: 0}, "main.go"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := lineCommentLocation(tc.rc)
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
