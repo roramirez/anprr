@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Code quality** — refactored `main.go`, `internal/tui/detail.go`, `internal/tui/list.go`, and `internal/github/models.go` to reduce cognitive complexity and Halstead effort; km score improved from B+ (89.2) to A+ (93.4)
+
 ### Fixed
 
 - `anprr repos add` now returns an error and exits non-zero when the repository is already present in the config (or in the target scope)
