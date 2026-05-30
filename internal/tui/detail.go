@@ -61,6 +61,7 @@ const (
 	vpHeightOffset     = 5 // rows consumed by header, tabs, and footer
 	textareaBorderRows = 2 // top + bottom border of the textarea box
 	confirmBoxRows     = 7 // height of the approve/merge confirm prompt box
+	commentIndent      = "  "
 )
 
 type DetailModel struct {
@@ -184,7 +185,7 @@ func (m DetailModel) handleKeyByState(msg tea.KeyMsg, client *github.Client, cac
 	case detailStateMergeConfirm:
 		return m.handleMergeConfirm(msg, client)
 	case detailStateSubmitting:
-		if msg.String() == "b" || msg.String() == keyEsc {
+		if msg.String() == keyBack || msg.String() == keyEsc {
 			m = m.resetToReady()
 		}
 		return m, nil
@@ -258,12 +259,7 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 		m.renderComments()
 		return m, nil
 	case "s":
-		// toggle between unified and split view
-		if m.diffView == viewUnified {
-			m.diffView = viewSplit
-		} else {
-			m.diffView = viewUnified
-		}
+		m.diffView = toggleView(m.diffView)
 		m.rerender()
 		return m, nil
 	case "n":
@@ -290,7 +286,7 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 		return m, fetchDiffCmd(client, cache, m.pr)
 	case "w":
 		return m, openBrowserCmd(m.pr.URL)
-	case "b", keyEsc:
+	case keyBack, keyEsc:
 		return m, func() tea.Msg { return NavigateToListMsg{} }
 	case "q":
 		return m, tea.Quit
@@ -304,11 +300,7 @@ func (m DetailModel) handleReady(msg tea.KeyMsg, client *github.Client, cache *g
 func (m DetailModel) handleLineSelect(msg tea.KeyMsg, _ *github.Client) (DetailModel, tea.Cmd) {
 	switch msg.String() {
 	case "s":
-		if m.diffView == viewUnified {
-			m.diffView = viewSplit
-		} else {
-			m.diffView = viewUnified
-		}
+		m.diffView = toggleView(m.diffView)
 		m.rerender()
 		return m, nil
 	case "j", "down":
@@ -336,11 +328,18 @@ func (m DetailModel) handleLineSelect(msg tea.KeyMsg, _ *github.Client) (DetailM
 	return m, nil
 }
 
+func toggleView(v viewMode) viewMode {
+	if v == viewUnified {
+		return viewSplit
+	}
+	return viewUnified
+}
+
 func (m DetailModel) handleMergeKey() (DetailModel, tea.Cmd) {
 	if m.pr.IsDraft {
 		return m, statusCmd("Cannot merge a draft PR", true)
 	}
-	if m.pr.Mergeable == "CONFLICTING" {
+	if m.pr.Mergeable == github.MergeableConflicting {
 		return m, statusCmd("PR has conflicts — resolve before merging", true)
 	}
 	m.state = detailStateMergeConfirm
@@ -492,22 +491,25 @@ func (m *DetailModel) renderComments() {
 		renderCommentBlock(&sb, c.Author.Login, timeAgo(c.CreatedAt), c.Body, sep)
 	}
 	for _, rc := range m.pr.LineComments {
-		loc := rc.Path
-		if rc.Line > 0 {
-			loc += fmt.Sprintf(":%d", rc.Line)
-		}
-		renderCommentBlock(&sb, rc.Author.Login, loc, rc.Body, sep)
+		renderCommentBlock(&sb, rc.Author.Login, lineCommentLocation(rc), rc.Body, sep)
 	}
 	m.vp.SetContent(sb.String())
 	m.vp.GotoTop()
 }
 
+func lineCommentLocation(rc github.LineComment) string {
+	if rc.Line > 0 {
+		return fmt.Sprintf("%s:%d", rc.Path, rc.Line)
+	}
+	return rc.Path
+}
+
 func renderCommentBlock(sb *strings.Builder, author, meta, body, sep string) {
 	sb.WriteString(StyleHelpKey.Render(author))
-	sb.WriteString(StylePRAge.Render("  " + meta))
+	sb.WriteString(StylePRAge.Render(commentIndent + meta))
 	sb.WriteByte('\n')
 	for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
-		sb.WriteString("  " + StylePRTitle.Render(line) + "\n")
+		sb.WriteString(commentIndent + StylePRTitle.Render(line) + "\n")
 	}
 	sb.WriteString(StylePRAge.Render(sep) + "\n")
 }
@@ -602,7 +604,7 @@ func (m DetailModel) renderHeader(width int) string {
 	checkLabel := renderCheckLabel(m.pr.CheckState)
 	meta := fmt.Sprintf("author: %s  %s → %s  +%d -%d",
 		m.pr.Author.Login, m.pr.HeadRef, m.pr.BaseRef, m.pr.Additions, m.pr.Deletions)
-	if m.pr.Mergeable == "CONFLICTING" {
+	if m.pr.Mergeable == github.MergeableConflicting {
 		meta += "  " + StyleStatusConflict.Render("⚠ conflicts")
 	}
 	if checkLabel != "" {
@@ -617,13 +619,13 @@ func (m DetailModel) renderHeader(width int) string {
 
 func renderCheckLabel(state string) string {
 	switch state {
-	case "SUCCESS":
+	case github.CheckStateSuccess:
 		return StyleCheckSuccess.Render("✓ checks passed")
-	case "FAILURE", "ERROR":
+	case github.CheckStateFailure, github.CheckStateError:
 		return StyleCheckFailure.Render("✗ checks failed")
-	case "PENDING", "IN_PROGRESS", "QUEUED":
+	case github.CheckStatePending, github.CheckStateInProgress, github.CheckStateQueued:
 		return StyleCheckPending.Render("○ checks running")
-	case "EXPECTED":
+	case github.CheckStateExpected:
 		return StyleCheckNone.Render("— no checks")
 	default:
 		return ""
@@ -632,12 +634,7 @@ func renderCheckLabel(state string) string {
 
 // renderConfirmBox renders a rounded green-bordered prompt box.
 func renderConfirmBox(width int, content string) string {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#00FF7F")).
-		Padding(0, 2).
-		Width(width - borderWidthOffset).
-		Render(content)
+	return StyleConfirmBox.Width(width - borderWidthOffset).Render(content)
 }
 
 func (m DetailModel) renderFooter(width int, statusBar string) string {
@@ -656,13 +653,17 @@ func (m DetailModel) renderFooter(width int, statusBar string) string {
 	return keys
 }
 
+func helpRow(keyLabel, desc string) string {
+	return StyleHelpKey.Render(keyLabel) + StyleHelpDesc.Render(desc) + "\n"
+}
+
 func (m DetailModel) renderMergeConfirmFooter(width int) string {
 	return renderConfirmBox(width,
 		StyleStatusBarOK.Render("Merge PR #"+fmt.Sprint(m.pr.Number)+"?")+"\n\n"+
-			StyleHelpKey.Render("s / enter")+StyleHelpDesc.Render("Squash and merge (recommended)")+"\n"+
-			StyleHelpKey.Render("m        ")+StyleHelpDesc.Render("Merge commit")+"\n"+
-			StyleHelpKey.Render("r        ")+StyleHelpDesc.Render("Rebase and merge")+"\n"+
-			StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
+			helpRow("s / enter", "Squash and merge (recommended)")+
+			helpRow("m        ", "Merge commit")+
+			helpRow("r        ", "Rebase and merge")+
+			helpRow("esc      ", "Cancel"),
 	)
 }
 
@@ -673,9 +674,9 @@ func (m DetailModel) renderApproveConfirmFooter(width int) string {
 	}
 	return renderConfirmBox(width,
 		StyleStatusBarOK.Render("Approve PR #"+fmt.Sprint(m.pr.Number)+"?")+pending+"\n\n"+
-			StyleHelpKey.Render("y / enter")+StyleHelpDesc.Render("Approve now")+"\n"+
-			StyleHelpKey.Render("c        ")+StyleHelpDesc.Render("Approve with a comment")+"\n"+
-			StyleHelpKey.Render("esc      ")+StyleHelpDesc.Render("Cancel"),
+			helpRow("y / enter", "Approve now")+
+			helpRow("c        ", "Approve with a comment")+
+			helpRow("esc      ", "Cancel"),
 	)
 }
 

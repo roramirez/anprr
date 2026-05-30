@@ -5,6 +5,7 @@ import "github.com/charmbracelet/bubbles/key"
 const (
 	keyEsc    = "esc"
 	keyEnter  = "enter"
+	keyBack   = "b"
 	dotFilled = "●"
 )
 

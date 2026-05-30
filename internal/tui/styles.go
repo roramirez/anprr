@@ -116,4 +116,9 @@ var (
 	StyleTextareaBox = lipgloss.NewStyle().
 				Border(lipgloss.RoundedBorder()).
 				BorderForeground(lipgloss.Color("#00BFFF"))
+
+	StyleConfirmBox = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#00FF7F")).
+			Padding(0, 2)
 )

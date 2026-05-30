@@ -249,7 +249,7 @@ func isBotAuthor(login, typename string) bool {
 
 // DerivePRStatus computes the review status from the PR's reviews and mergeable field.
 func DerivePRStatus(pr PR) PRStatus {
-	if pr.Mergeable == "CONFLICTING" {
+	if pr.Mergeable == MergeableConflicting {
 		return StatusConflict
 	}
 	return statusFromLatestReviews(collectLatestReviews(pr.Reviews))
