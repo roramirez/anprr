@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/roramirez/anprr/internal/github"
 )
 
@@ -249,7 +250,7 @@ func TestRenderCheckIcon(t *testing.T) {
 		{"EXPECTED", "—"},
 	}
 	for _, c := range cases {
-		got := renderCheckIcon(c.state)
+		got := renderCheckIcon(c.state, lipgloss.Color(""))
 		if !strings.Contains(got, c.want) {
 			t.Errorf("renderCheckIcon(%q) = %q, want to contain %q", c.state, got, c.want)
 		}
@@ -272,6 +273,47 @@ func TestStatusDot(t *testing.T) {
 		if dot != c.wantDot {
 			t.Errorf("statusDot(%+v) dot = %q, want %q", c.pr, dot, c.wantDot)
 		}
+	}
+}
+
+// selectionBgANSI is the ANSI SGR sequence for the selection background (#1E2A3A = rgb(30,42,58)).
+const selectionBgANSI = "48;2;30;42;58"
+
+func TestRenderPRRow_selectedHasBackground(t *testing.T) {
+	m := newListModel()
+	pr := makePR(42, "alice", "org/repo", false, github.StatusPending)
+
+	selected := m.renderPRRow(pr, true, 120)
+	unselected := m.renderPRRow(pr, false, 120)
+
+	if !strings.Contains(selected, selectionBgANSI) {
+		t.Errorf("selected row should contain background ANSI %s", selectionBgANSI)
+	}
+	if strings.Contains(unselected, selectionBgANSI) {
+		t.Errorf("unselected row should not contain background ANSI %s", selectionBgANSI)
+	}
+}
+
+func TestRenderPRRow_selectedHasCursorArrow(t *testing.T) {
+	m := newListModel()
+	pr := makePR(1, "bob", "org/repo", false, github.StatusPending)
+
+	selected := m.renderPRRow(pr, true, 120)
+	unselected := m.renderPRRow(pr, false, 120)
+
+	if !strings.Contains(selected, "▶") {
+		t.Errorf("selected row should contain cursor arrow ▶")
+	}
+	if strings.Contains(unselected, "▶") {
+		t.Errorf("unselected row should not contain cursor arrow ▶")
+	}
+}
+
+func TestRenderCheckIcon_withBackground(t *testing.T) {
+	bg := lipgloss.Color("#1E2A3A")
+	icon := renderCheckIcon("SUCCESS", bg)
+	if !strings.Contains(icon, selectionBgANSI) {
+		t.Errorf("check icon with background should contain ANSI %s, got: %q", selectionBgANSI, icon)
 	}
 }
 

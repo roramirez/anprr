@@ -405,21 +405,13 @@ func prTitleAndStyle(pr github.PR) (string, lipgloss.Style) {
 }
 
 func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
-	cursor := colSepStr
-	if selected {
-		cursor = StyleCursor.Render("▶ ")
-	}
-
 	title, titleStyle := prTitleAndStyle(pr)
-
 	dot, dotStyle := statusDot(pr)
 	age := timeAgo(pr.UpdatedAt)
 
-	// fixed column widths
 	numberStr := fmt.Sprintf("#%-4d", pr.Number)
 	repoStr := pr.Repo
 	ageStr := age
-	checkIcon := renderCheckIcon(pr.CheckState)
 
 	// fixed chars: cursor(2) + sep(2) + sep(2) + repo + sep(2) + age + sep(2) + dot(1) + sep(2) + icon(1)
 	fixedW := colSep + len(numberStr) + colSep + colSep + len(repoStr) + colSep + len(ageStr) + colSep + 1 + colSep + 1
@@ -433,13 +425,25 @@ func (m ListModel) renderPRRow(pr github.PR, selected bool, width int) string {
 		title += strings.Repeat(" ", titleW-len(title))
 	}
 
-	return cursor +
-		StylePRRepo.Render(numberStr) + colSepStr +
-		titleStyle.Render(title) + colSepStr +
-		StylePRRepo.Render(repoStr) + colSepStr +
-		StylePRAge.Render(ageStr) + colSepStr +
-		dotStyle.Render(dot) + colSepStr +
-		checkIcon
+	if !selected {
+		return colSepStr +
+			StylePRRepo.Render(numberStr) + colSepStr +
+			titleStyle.Render(title) + colSepStr +
+			StylePRRepo.Render(repoStr) + colSepStr +
+			StylePRAge.Render(ageStr) + colSepStr +
+			dotStyle.Render(dot) + colSepStr +
+			renderCheckIcon(pr.CheckState, lipgloss.Color(""))
+	}
+
+	bg := lipgloss.Color("#1E2A3A")
+	sep := lipgloss.NewStyle().Background(bg).Render(colSepStr)
+	return StyleCursor.Background(bg).Render("▶ ") +
+		StylePRRepo.Background(bg).Render(numberStr) + sep +
+		titleStyle.Background(bg).Render(title) + sep +
+		StylePRRepo.Background(bg).Render(repoStr) + sep +
+		StylePRAge.Background(bg).Render(ageStr) + sep +
+		dotStyle.Background(bg).Render(dot) + sep +
+		renderCheckIcon(pr.CheckState, bg)
 }
 
 func (m ListModel) renderFooter(width int, statusBar string) string {
@@ -451,16 +455,16 @@ func (m ListModel) renderFooter(width int, statusBar string) string {
 	return keys + sb
 }
 
-func renderCheckIcon(state string) string {
+func renderCheckIcon(state string, bg lipgloss.TerminalColor) string {
 	switch state {
 	case github.CheckStateSuccess:
-		return StyleCheckSuccess.Render("✓")
+		return StyleCheckSuccess.Background(bg).Render("✓")
 	case github.CheckStateFailure, github.CheckStateError:
-		return StyleCheckFailure.Render("✗")
+		return StyleCheckFailure.Background(bg).Render("✗")
 	case github.CheckStatePending, github.CheckStateInProgress, github.CheckStateQueued:
-		return StyleCheckPending.Render("○")
+		return StyleCheckPending.Background(bg).Render("○")
 	default:
-		return StyleCheckNone.Render("—")
+		return StyleCheckNone.Background(bg).Render("—")
 	}
 }
 
