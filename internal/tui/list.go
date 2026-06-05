@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -244,6 +245,16 @@ func (m ListModel) handleLoadMoreKey(client *github.Client, cache *github.Cache)
 	return tea.Batch(cmds...)
 }
 
+// sortPRs sorts PRs by repo name ascending, then by PR number ascending.
+func sortPRs(prs []github.PR) {
+	sort.Slice(prs, func(i, j int) bool {
+		if prs[i].Repo != prs[j].Repo {
+			return prs[i].Repo < prs[j].Repo
+		}
+		return prs[i].Number < prs[j].Number
+	})
+}
+
 func updateListModel(m ListModel, msg PRsLoadedMsg) (ListModel, []tea.Cmd) {
 	if msg.Err != nil {
 		m.err = msg.Err
@@ -251,6 +262,7 @@ func updateListModel(m ListModel, msg PRsLoadedMsg) (ListModel, []tea.Cmd) {
 		return m, []tea.Cmd{statusCmd("Error: "+msg.Err.Error(), true)}
 	}
 	m.allPRs = msg.PRs
+	sortPRs(m.allPRs)
 	m.state = listStateReady
 	m.err = nil
 	m = m.updatePaginationInfo()
@@ -289,6 +301,7 @@ func updateListModelMore(m ListModel, msg MorePRsLoadedMsg) (ListModel, []tea.Cm
 		return m, []tea.Cmd{statusCmd("Error: "+msg.Err.Error(), true)}
 	}
 	m.allPRs = append(m.allPRs, msg.PRs...)
+	sortPRs(m.allPRs)
 	m.hasNextPage[msg.Repo] = msg.HasNext
 	m.endCursor[msg.Repo] = msg.EndCursor
 	return m, nil
