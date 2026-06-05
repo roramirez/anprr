@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-05
+
 ### Security
 
 - Bumped Go toolchain to 1.25.11 to address GO-2026-5037 (crypto/x509 hostname parsing vulnerability)
@@ -16,20 +18,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - PR list is now sorted by repository name (ascending) then PR number (ascending), across both initial load and "load more" pages
 - **Code quality** — refactored `main.go`, `internal/tui/detail.go`, `internal/tui/list.go`, and `internal/github/models.go` to reduce cognitive complexity and Halstead effort; km score improved from B+ (89.2) to A+ (93.4)
+- Bumped `github.com/alecthomas/chroma/v2` from 2.24.1 to 2.26.1
 
 ### Fixed
 
 - `anprr repos add` now returns an error and exits non-zero when the repository is already present in the config (or in the target scope)
+- **Spinner stuck after submit** — "Submitting…" footer no longer stays visible after a successful review approval or comment post; detail view correctly returns to ready state
 
 ### Added
 
 - **Head branch in PR detail** — header now shows `head → base` instead of only the base branch
 - **Scopes** — named profiles in config (`[scopes.work]`, `[scopes.personal]`) each with their own `token` and `repos`; select with `--scope <name>` on any command
 - `anprr scopes list` — lists all configured scopes
-
-### Fixed
-
-- **Spinner stuck after submit** — "Submitting…" footer no longer stays visible after a successful review approval or comment post; detail view correctly returns to ready state
+- **Conflict indicator** — PRs with merge conflicts are shown with a `⚡ conflict` badge in the list and detail views
+- **Selected PR highlight** — the currently selected row in the PR list is highlighted with a background color for better visibility
 
 ## [0.1.0] - 2026-05-23
 
@@ -59,5 +61,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`--version` flag** — prints the current version and exits
 - **Makefile** — `make build`, `make test`, `make lint`; `make help` is the default target
 
-[Unreleased]: https://github.com/roramirez/anprr/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/roramirez/anprr/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/roramirez/anprr/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/roramirez/anprr/releases/tag/v0.1.0
