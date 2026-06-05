@@ -523,6 +523,67 @@ func TestPrTitleAndStyle_normal(t *testing.T) {
 	}
 }
 
+func TestSortPRs(t *testing.T) {
+	tests := []struct {
+		name  string
+		input []github.PR
+		want  []github.PR
+	}{
+		{
+			name: "mixed repos and numbers",
+			input: []github.PR{
+				makePR(5, "u", "org/z", false, github.StatusPending),
+				makePR(1, "u", "org/a", false, github.StatusPending),
+				makePR(3, "u", "org/z", false, github.StatusPending),
+				makePR(2, "u", "org/a", false, github.StatusPending),
+			},
+			want: []github.PR{
+				makePR(1, "u", "org/a", false, github.StatusPending),
+				makePR(2, "u", "org/a", false, github.StatusPending),
+				makePR(3, "u", "org/z", false, github.StatusPending),
+				makePR(5, "u", "org/z", false, github.StatusPending),
+			},
+		},
+		{
+			name: "single repo sorted by number",
+			input: []github.PR{
+				makePR(10, "u", "org/x", false, github.StatusPending),
+				makePR(2, "u", "org/x", false, github.StatusPending),
+				makePR(7, "u", "org/x", false, github.StatusPending),
+			},
+			want: []github.PR{
+				makePR(2, "u", "org/x", false, github.StatusPending),
+				makePR(7, "u", "org/x", false, github.StatusPending),
+				makePR(10, "u", "org/x", false, github.StatusPending),
+			},
+		},
+		{
+			name: "already sorted is idempotent",
+			input: []github.PR{
+				makePR(1, "u", "org/a", false, github.StatusPending),
+				makePR(2, "u", "org/a", false, github.StatusPending),
+				makePR(1, "u", "org/b", false, github.StatusPending),
+			},
+			want: []github.PR{
+				makePR(1, "u", "org/a", false, github.StatusPending),
+				makePR(2, "u", "org/a", false, github.StatusPending),
+				makePR(1, "u", "org/b", false, github.StatusPending),
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sortPRs(tc.input)
+			for i, pr := range tc.input {
+				if pr.Repo != tc.want[i].Repo || pr.Number != tc.want[i].Number {
+					t.Errorf("index %d: got repo=%s number=%d, want repo=%s number=%d",
+						i, pr.Repo, pr.Number, tc.want[i].Repo, tc.want[i].Number)
+				}
+			}
+		})
+	}
+}
+
 func TestListModel_draftCannotApprove(t *testing.T) {
 	m := newListModel()
 	m.state = listStateReady

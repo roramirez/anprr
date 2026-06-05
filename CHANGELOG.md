@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- PR list is now sorted by repository name (ascending) then PR number (ascending), across both initial load and "load more" pages
 - **Code quality** — refactored `main.go`, `internal/tui/detail.go`, `internal/tui/list.go`, and `internal/github/models.go` to reduce cognitive complexity and Halstead effort; km score improved from B+ (89.2) to A+ (93.4)
 
 ### Fixed
